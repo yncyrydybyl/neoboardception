@@ -1,6 +1,6 @@
 /*
  * NeoBoardception spike — overlay that hosts ONE inner widget on top of the
- * board. Compiled in only for spike builds (VITE_NBC_SPIKE_INNER_ORIGINS) and
+ * board. Compiled in only for spike builds (REACT_APP_NBC_SPIKE_INNER_ORIGINS) and
  * activated only when the NeoBoard widget URL carries
  * `nbc_inner=<https url of the inner widget>` whose origin is on the
  * build-time allow-list. Room members can set the URL, so the allow-list —

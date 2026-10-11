@@ -7,7 +7,7 @@ cd "$ROOT"
 yarn install --frozen-lockfile
 # Same build as the upstream/store build: legacy WebRTC transport, audited capability list.
 # Spike code is only compiled in when the inner-widget origin allow-list is set.
-VITE_NBC_SPIKE_INNER_ORIGINS="${VITE_NBC_SPIKE_INNER_ORIGINS:-https://localhost:5444}" \
+REACT_APP_NBC_SPIKE_INNER_ORIGINS="${REACT_APP_NBC_SPIKE_INNER_ORIGINS:-https://localhost:5444}" \
   REACT_APP_RTC=webrtc yarn build
 # Inner test widget: one bundled ES module + static index.html.
 rm -rf spike/test-widget/dist && mkdir -p spike/test-widget/dist
