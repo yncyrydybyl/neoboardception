@@ -15,6 +15,7 @@
  */
 
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import GppMaybeOutlinedIcon from '@mui/icons-material/GppMaybeOutlined';
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import HourglassTopOutlinedIcon from '@mui/icons-material/HourglassTopOutlined';
@@ -23,10 +24,12 @@ import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutline';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import TouchAppOutlinedIcon from '@mui/icons-material/TouchAppOutlined';
 import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
-import { Box, Typography } from '@mui/material';
+import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
+import { Box, Button, Typography } from '@mui/material';
 import { visuallyHidden } from '@mui/utils';
 import { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
+import { EmbeddedWidgetSupport } from './describeCapabilities';
 import { EmbeddedWidgetPreapproval } from './renderer';
 
 /** Local UI state of a live embedded widget. */
@@ -52,6 +55,16 @@ export type EmbeddedWidgetStatusBarProps = {
    * consent was asked). Shown as a non-blocking notice.
    */
   preapproved?: EmbeddedWidgetPreapproval;
+  /**
+   * Permissions the widget cannot get here. `unsupported` replaces the
+   * "ready" state; any blocked permission is shown as a warning.
+   */
+  support?: EmbeddedWidgetSupport;
+  /**
+   * Leave the interaction state. Shown as a button while interacting: key
+   * presses inside the widget (e.g. Escape) never reach the board.
+   */
+  onLeave?: () => void;
 };
 
 /**
@@ -66,6 +79,8 @@ export function EmbeddedWidgetStatusBar({
   state,
   sharedChange,
   preapproved,
+  support,
+  onLeave,
 }: EmbeddedWidgetStatusBarProps) {
   const { t } = useTranslation('neoboard');
 
@@ -87,10 +102,7 @@ export function EmbeddedWidgetStatusBar({
     },
     interacting: {
       icon: <MouseOutlinedIcon fontSize="small" aria-hidden />,
-      text: t(
-        'embeddedWidget.state.interacting',
-        'You are in the widget – Esc or click outside to leave',
-      ),
+      text: t('embeddedWidget.state.interacting', 'You are in the widget'),
     },
     suspended: {
       icon: <PauseCircleOutlineIcon fontSize="small" aria-hidden />,
@@ -101,7 +113,38 @@ export function EmbeddedWidgetStatusBar({
       text: t('embeddedWidget.state.error', 'Error'),
     },
   };
-  const { icon, text } = stateInfo[state];
+  const unsupported =
+    support?.level === 'unsupported' &&
+    (state === 'ready' || state === 'suspended');
+  const { icon, text } = unsupported
+    ? {
+        icon: <WarningAmberOutlinedIcon fontSize="small" aria-hidden />,
+        text: t('embeddedWidget.state.unsupported', 'Not supported here'),
+      }
+    : stateInfo[state];
+  const showLimits =
+    support !== undefined && support.level !== 'full' && state !== 'error';
+  const limitsText = showLimits
+    ? t(
+        'embeddedWidget.limits.text',
+        '{{blocked}} of {{requested}} permissions not available here',
+        { blocked: support.blocked, requested: support.requested },
+      )
+    : undefined;
+  const limitsDetail = showLimits
+    ? t(
+        'embeddedWidget.limits.detail',
+        'This board does not grant: {{capabilities}}',
+        { capabilities: support.blockedCapabilities.join(', ') },
+      )
+    : undefined;
+  const leaveHint =
+    state === 'interacting'
+      ? t(
+          'embeddedWidget.leaveHint',
+          'Click outside the widget or use “Leave widget” to return to the board.',
+        )
+      : undefined;
 
   const context = sharedChange
     ? {
@@ -130,14 +173,20 @@ export function EmbeddedWidgetStatusBar({
             ),
           }
         : undefined;
-  const announcement =
-    context && 'detail' in context ? context.detail : context?.text;
+  const announcement = [
+    context && 'detail' in context ? context.detail : context?.text,
+    limitsText,
+    leaveHint,
+  ]
+    .filter((part) => part !== undefined)
+    .join('. ');
 
   return (
     <Box
       data-testid={`element-${elementId}-embedded-widget-statusbar`}
       data-state={state}
       data-context={context?.kind ?? 'none'}
+      data-support={support?.level ?? 'full'}
       sx={(theme) => ({
         height: embeddedWidgetStatusBarHeight,
         flex: `0 0 ${embeddedWidgetStatusBarHeight}px`,
@@ -154,13 +203,17 @@ export function EmbeddedWidgetStatusBar({
             ? theme.palette.primary.main
             : state === 'error'
               ? theme.palette.error.main
-              : theme.palette.background.default,
+              : unsupported
+                ? theme.palette.warning.main
+                : theme.palette.background.default,
         color:
           state === 'interacting'
             ? theme.palette.primary.contrastText
             : state === 'error'
               ? theme.palette.error.contrastText
-              : theme.palette.text.primary,
+              : unsupported
+                ? theme.palette.warning.contrastText
+                : theme.palette.text.primary,
         borderBottom: `1px solid ${theme.palette.divider}`,
       })}
     >
@@ -183,6 +236,30 @@ export function EmbeddedWidgetStatusBar({
         {name}
       </Typography>
       <Box sx={{ flex: 1 }} />
+      {showLimits && (
+        <Box
+          data-testid={`element-${elementId}-embedded-widget-limits`}
+          title={limitsDetail}
+          sx={(theme) => ({
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.5,
+            px: 1,
+            borderRadius: 1,
+            flexShrink: 1,
+            minWidth: 0,
+            backgroundColor: unsupported
+              ? 'rgba(0,0,0,0.12)'
+              : theme.palette.warning.main,
+            color: unsupported ? 'inherit' : theme.palette.warning.contrastText,
+          })}
+        >
+          <WarningAmberOutlinedIcon fontSize="small" aria-hidden />
+          <Typography component="span" variant="body2" noWrap>
+            {limitsText}
+          </Typography>
+        </Box>
+      )}
       {context && (
         <Box
           data-testid={`element-${elementId}-embedded-widget-context`}
@@ -213,6 +290,31 @@ export function EmbeddedWidgetStatusBar({
             {context.text}
           </Typography>
         </Box>
+      )}
+      {state === 'interacting' && onLeave && (
+        <Button
+          size="small"
+          variant="contained"
+          color="inherit"
+          startIcon={<ExitToAppIcon aria-hidden />}
+          onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onLeave();
+          }}
+          data-testid={`element-${elementId}-embedded-widget-leave`}
+          sx={{
+            flexShrink: 0,
+            py: 0,
+            minHeight: 0,
+            lineHeight: 1.5,
+            color: 'primary.main',
+            backgroundColor: 'primary.contrastText',
+          }}
+        >
+          {t('embeddedWidget.leave', 'Leave widget')}
+        </Button>
       )}
       <Box
         component="span"

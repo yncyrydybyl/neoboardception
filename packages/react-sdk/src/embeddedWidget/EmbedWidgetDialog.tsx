@@ -24,12 +24,11 @@ import {
   TextField,
 } from '@mui/material';
 import { unstable_useId as useId } from '@mui/utils';
-import { FormEvent, useCallback, useState } from 'react';
+import { FormEvent, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   checkEmbeddedWidgetUrl,
   embeddedWidgetTitleMaxLength,
-  EmbeddedWidgetUrlCheck,
   EmbeddedWidgetUrlPolicy,
 } from './urlPolicy';
 
@@ -41,7 +40,9 @@ export type EmbedWidgetDialogProps = {
 };
 
 /**
- * Minimal dialog asking for the widget URL and an optional title.
+ * Minimal dialog asking for the widget URL and an optional title. The URL is
+ * checked while typing; "Embed" stays disabled (with a helper text) until
+ * the URL is allowed on this board.
  */
 export function EmbedWidgetDialog({
   open,
@@ -53,36 +54,35 @@ export function EmbedWidgetDialog({
   const dialogTitleId = useId();
   const [widgetUrl, setWidgetUrl] = useState('');
   const [title, setTitle] = useState('');
-  const [check, setCheck] = useState<EmbeddedWidgetUrlCheck>();
+  const trimmedUrl = widgetUrl.trim();
+  const check = useMemo(
+    () => checkEmbeddedWidgetUrl(trimmedUrl, isUrlAllowed),
+    [trimmedUrl, isUrlAllowed],
+  );
 
   const handleClose = useCallback(() => {
     setWidgetUrl('');
     setTitle('');
-    setCheck(undefined);
     onClose();
   }, [onClose]);
 
   const handleSubmit = useCallback(
     (event: FormEvent) => {
       event.preventDefault();
-      const result = checkEmbeddedWidgetUrl(widgetUrl.trim(), isUrlAllowed);
-      setCheck(result);
-
-      if (result.allowed) {
+      if (check.allowed) {
         onSubmit({
-          widgetUrl: widgetUrl.trim(),
+          widgetUrl: trimmedUrl,
           title: title.trim() || undefined,
         });
         setWidgetUrl('');
         setTitle('');
-        setCheck(undefined);
       }
     },
-    [widgetUrl, title, isUrlAllowed, onSubmit],
+    [check, trimmedUrl, title, onSubmit],
   );
 
   let errorText: string | undefined;
-  if (check && !check.allowed) {
+  if (trimmedUrl !== '' && !check.allowed) {
     errorText =
       check.reason === 'policy'
         ? t(
@@ -117,12 +117,15 @@ export function EmbedWidgetDialog({
               label={t('embeddedWidget.dialog.urlLabel', 'Widget address')}
               placeholder="https://"
               value={widgetUrl}
-              onChange={(e) => {
-                setWidgetUrl(e.target.value);
-                setCheck(undefined);
-              }}
+              onChange={(e) => setWidgetUrl(e.target.value)}
               error={errorText !== undefined}
-              helperText={errorText}
+              helperText={
+                errorText ??
+                t(
+                  'embeddedWidget.dialog.helper',
+                  'Only widget addresses approved for this board can be embedded.',
+                )
+              }
             />
             <TextField
               fullWidth
@@ -139,7 +142,7 @@ export function EmbedWidgetDialog({
           <Button onClick={handleClose}>
             {t('embeddedWidget.dialog.cancel', 'Cancel')}
           </Button>
-          <Button type="submit" variant="contained">
+          <Button type="submit" variant="contained" disabled={!check.allowed}>
             {t('embeddedWidget.dialog.submit', 'Embed')}
           </Button>
         </DialogActions>

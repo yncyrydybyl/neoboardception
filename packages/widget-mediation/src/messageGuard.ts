@@ -16,8 +16,8 @@
 
 /**
  * One capture-phase `message` listener per window that validates Widget API
- * traffic before any transport sees it. We validate `event.source` and
- * `event.origin` ourselves and do not rely on the transport.
+ * traffic before any transport sees it: it checks `event.source` and
+ * `event.origin` of every message in one place.
  *
  * Rules for messages that look like Widget API messages (`api` field):
  * - carrying the widget id of a registered embedded widget: must come from

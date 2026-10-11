@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import type { EmbeddedWidgetCapabilityLimits } from './renderer';
+
 const EVENT_CAPABILITY =
   /^org\.matrix\.msc2762\.(send|receive)\.(event|state_event):([^#]*)(?:#(.*))?$/;
 
@@ -68,5 +70,62 @@ export function groupCapabilities(
     read: [...read].sort(),
     write: [...write].sort(),
     other: [...other].sort(),
+  };
+}
+
+/** Capabilities that write to the room (other members see the result). */
+const WRITE_CAPABILITY = /\.send\./;
+
+/**
+ * How well an embedded widget can work on this board:
+ *
+ * - `full`: every permission it asked for is available here.
+ * - `limited`: some permissions are not available here; parts of the widget
+ *   may not work.
+ * - `unsupported`: the widget cannot do its job here: nothing it asked for
+ *   is available, or it asked to write to the room and every one of those
+ *   write permissions is unavailable.
+ */
+export type EmbeddedWidgetSupport = {
+  level: 'full' | 'limited' | 'unsupported';
+  /** Number of permissions (as the user would count them) asked for. */
+  requested: number;
+  /** Number of those that are not available here. */
+  blocked: number;
+  /** The unavailable permissions, verbatim (for details). */
+  blockedCapabilities: readonly string[];
+};
+
+/**
+ * Rates the permissions an embedded widget cannot get on this board (refused
+ * by the deployment's policy or the board's hard limits, not by the user).
+ * Client hints without meaning for the user are not counted.
+ */
+export function getEmbeddedWidgetSupport(
+  limits: EmbeddedWidgetCapabilityLimits | undefined,
+): EmbeddedWidgetSupport {
+  const relevant = (list: readonly string[]) => [
+    ...new Set(list.filter((c) => !HIDDEN_CAPABILITIES.includes(c))),
+  ];
+  const requested = relevant(limits?.requested ?? []);
+  const blocked = relevant(limits?.blocked ?? []);
+  const all = [...new Set([...requested, ...blocked])];
+  if (blocked.length === 0) {
+    return {
+      level: 'full',
+      requested: all.length,
+      blocked: 0,
+      blockedCapabilities: [],
+    };
+  }
+  const writes = all.filter((c) => WRITE_CAPABILITY.test(c));
+  const unsupported =
+    blocked.length === all.length ||
+    (writes.length > 0 && writes.every((c) => blocked.includes(c)));
+  return {
+    level: unsupported ? 'unsupported' : 'limited',
+    requested: all.length,
+    blocked: blocked.length,
+    blockedCapabilities: blocked,
   };
 }

@@ -23,6 +23,7 @@ import {
   EventNamespaceMap,
   isHardDenied,
   type MatrixRtcContext,
+  type ModalMode,
   policyInitialCapabilities,
   policyOrigins,
   POLL_CAPABILITIES,
@@ -70,6 +71,11 @@ export type EmbeddedWidgetMountPolicy = {
    * form.
    */
   eventNamespace?: EventNamespaceMap;
+  /**
+   * Modals of the widget (policy `modals`). `undefined`: `forward` for
+   * origins in `REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS`, otherwise `deny`.
+   */
+  modals?: ModalMode;
 };
 
 export type EmbeddedWidgetConfigSource =
@@ -86,7 +92,10 @@ export type EmbeddedWidgetConfig = {
   source: EmbeddedWidgetConfigSource;
   /** Origins embedded widgets may come from. Empty: embedding is off. */
   allowedOrigins: readonly string[];
-  /** Subset of `allowedOrigins` whose widgets may open client modals. */
+  /**
+   * Subset of `allowedOrigins` whose widgets may open client modals
+   * (`forward`), unless their policy rule sets `modals`.
+   */
   modalOrigins: readonly string[];
   /** URL check for the board element (placeholder, insertion, mount). */
   isUrlAllowed: (url: URL) => boolean;
@@ -219,7 +228,8 @@ function parseFlag(value: string, name: string, warnings: string[]): boolean {
  *   origin allow-list (compatibility). With a policy, an upper bound: only
  *   policy origins that are also listed here are allowed.
  * - `REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS`: subset of the allowed origins
- *   whose widgets may open client modals.
+ *   whose widgets may open client modals (`forward`). A policy rule's
+ *   `modals` field (`deny`, `forward`, `inline`) wins.
  * - `REACT_APP_EMBEDDED_WIDGET_INITIAL_UNION=true`: add the capabilities of
  *   all policy rules to the board's initial capability request.
  * - `REACT_APP_EMBEDDED_WIDGET_ALLOWED_CAPABILITIES`: capabilities in
@@ -230,15 +240,35 @@ function parseFlag(value: string, name: string, warnings: string[]): boolean {
  *   widgets. The hard deny-list and the board's own events always win.
  * - `REACT_APP_EMBEDDED_WIDGET_MAX_LIVE`: widgets running at the same time
  *   per client (1–20), independent of the rest.
+ *
+ * The board's own origin (`hostOrigin`) is never allowed, wherever it is
+ * listed: a widget on it would share the board's origin, which the widget
+ * host refuses at mount anyway. It is dropped with a warning, so the board
+ * refuses such URLs up front (insertion, placeholder).
  */
 export function loadEmbeddedWidgetConfig(
   read: ReadEnvironment,
+  { hostOrigin }: { hostOrigin?: string } = {},
 ): EmbeddedWidgetConfig {
   const errors: string[] = [];
   const warnings: string[] = [];
-  const envOrigins = parseOrigins(
-    read('REACT_APP_EMBEDDED_WIDGET_ALLOWED_ORIGINS'),
-    warnings,
+  const ownOrigin = hostOrigin ? originOf(hostOrigin) : undefined;
+  /** Drops the board's own origin from a list of origins (with a warning). */
+  const withoutOwnOrigin = (origins: string[], name: string) => {
+    if (ownOrigin === undefined || !origins.includes(ownOrigin)) {
+      return origins;
+    }
+    warnings.push(
+      `${name}: ${ownOrigin} is the board's own origin; widgets cannot be embedded from it; ignored`,
+    );
+    return origins.filter((o) => o !== ownOrigin);
+  };
+  const envOrigins = withoutOwnOrigin(
+    parseOrigins(
+      read('REACT_APP_EMBEDDED_WIDGET_ALLOWED_ORIGINS'),
+      warnings,
+      'REACT_APP_EMBEDDED_WIDGET_ALLOWED_ORIGINS',
+    ),
     'REACT_APP_EMBEDDED_WIDGET_ALLOWED_ORIGINS',
   );
   const initialUnion = parseFlag(
@@ -292,7 +322,10 @@ export function loadEmbeddedWidgetConfig(
     } else {
       source = 'policy';
       policy = result.policy;
-      const candidates = policyOrigins(policy);
+      const candidates = withoutOwnOrigin(
+        policyOrigins(policy),
+        'REACT_APP_EMBEDDED_WIDGET_POLICY',
+      );
       if (policy.unlisted === 'consent') {
         envOrigins
           .filter((o) => !candidates.includes(o))
@@ -366,6 +399,7 @@ export function loadEmbeddedWidgetConfig(
       ...(decision.eventNamespace
         ? { eventNamespace: decision.eventNamespace }
         : {}),
+      ...(decision.modals && { modals: decision.modals }),
     };
   };
 
@@ -420,7 +454,9 @@ export function getEmbeddedWidgetConfig(): EmbeddedWidgetConfig {
     // widgets itself, whatever the deployment configures.
     cached = isEmbeddedBoard()
       ? loadEmbeddedWidgetConfig(() => '')
-      : loadEmbeddedWidgetConfig(readEnvironment);
+      : loadEmbeddedWidgetConfig(readEnvironment, {
+          hostOrigin: window.location.origin,
+        });
     cached.errors.forEach((e) => loglevel.error(`[embedded widgets] ${e}`));
     cached.warnings.forEach((w) => loglevel.warn(`[embedded widgets] ${w}`));
   }

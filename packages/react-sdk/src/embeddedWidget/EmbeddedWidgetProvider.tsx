@@ -23,6 +23,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { EmbeddedWidgetRemovalDialog } from './EmbeddedWidgetRemovalDialog';
 import { EmbeddedWidgetRenderer } from './renderer';
 import {
   denyAllEmbeddedWidgetUrls,
@@ -103,6 +104,13 @@ export type EmbeddedWidgetHost = EmbeddedWidgetHostConfig & {
   /** The element that currently receives pointer events, if any. */
   interactingElementId?: string;
   setInteractingElementId: (elementId: string | undefined) => void;
+  /**
+   * Delete flows call this instead of removing right away: if one of the
+   * elements holds a running call (pinned) on this client, the user is asked
+   * first; `remove` only runs after confirmation. Otherwise `remove` runs
+   * immediately.
+   */
+  confirmRemoval: (elementIds: readonly string[], remove: () => void) => void;
 };
 
 const noop = () => {};
@@ -120,6 +128,7 @@ const defaultHost: EmbeddedWidgetHost = {
   pinnedElementIds: new Set(),
   interactingElementId: undefined,
   setInteractingElementId: noop,
+  confirmRemoval: (_elementIds, remove) => remove(),
 };
 
 const EmbeddedWidgetHostContext =
@@ -147,6 +156,18 @@ export function EmbeddedWidgetProvider({
   const pinnedRef = useRef(pinnedElementIds);
   pinnedRef.current = pinnedElementIds;
   const [interactingElementId, setInteractingElementId] = useState<string>();
+  const [pendingRemoval, setPendingRemoval] = useState<() => void>();
+
+  const confirmRemoval = useCallback(
+    (elementIds: readonly string[], remove: () => void) => {
+      if (elementIds.some((id) => pinnedRef.current.has(id))) {
+        setPendingRemoval(() => remove);
+      } else {
+        remove();
+      }
+    },
+    [],
+  );
 
   const activate = useCallback(
     (elementId: string) =>
@@ -214,6 +235,7 @@ export function EmbeddedWidgetProvider({
       pinnedElementIds,
       interactingElementId,
       setInteractingElementId,
+      confirmRemoval,
     }),
     [
       renderer,
@@ -227,12 +249,22 @@ export function EmbeddedWidgetProvider({
       setPinned,
       pinnedElementIds,
       interactingElementId,
+      confirmRemoval,
     ],
   );
 
   return (
     <EmbeddedWidgetHostContext.Provider value={value}>
       {children}
+      <EmbeddedWidgetRemovalDialog
+        open={pendingRemoval !== undefined}
+        onCancel={() => setPendingRemoval(undefined)}
+        onConfirm={() => {
+          const remove = pendingRemoval;
+          setPendingRemoval(undefined);
+          remove?.();
+        }}
+      />
     </EmbeddedWidgetHostContext.Provider>
   );
 }

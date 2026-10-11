@@ -15,7 +15,7 @@
  */
 
 import { MockedWidgetApi, mockWidgetApi } from '@matrix-widget-toolkit/testing';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { ComponentType, PropsWithChildren } from 'react';
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import { LayoutStateProvider } from '../components/Layout';
@@ -209,7 +209,250 @@ describe('<EmbeddedWidgetDisplay />', () => {
     act(() =>
       lastProps?.onStatusChange({ state: 'error', message: 'Rights denied' }),
     );
-    expect(screen.getByText('Rights denied')).toBeInTheDocument();
+    // Localised text; the technical message only as details.
+    const status = screen.getByTestId(
+      'element-element-0-embedded-widget-status',
+    );
+    expect(status).toHaveTextContent('The widget could not be loaded.');
+    expect(status).toHaveAttribute('title', 'Rights denied');
+    expect(screen.queryByText('Rights denied')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['policy', 'This widget is not allowed in this deployment.'],
+    ['origin-not-allowed', 'This widget is not allowed in this deployment.'],
+    ['same-origin', 'Widgets from the board’s own address cannot be embedded.'],
+    ['invalid-url', 'The widget address was refused.'],
+  ] as const)(
+    'should show a localised permanent error (%s) without retry',
+    (code, text) => {
+      renderDisplay(createWrapper({ renderer, isUrlAllowed: allowWidgets }));
+      fireEvent.click(screen.getByRole('button', { name: 'Load widget' }));
+      act(() =>
+        lastProps?.onStatusChange({
+          state: 'error',
+          reason: 'load-failed',
+          code,
+          message: 'technical text',
+          retry: vi.fn(),
+        }),
+      );
+
+      const status = screen.getByTestId(
+        'element-element-0-embedded-widget-status',
+      );
+      expect(status).toHaveTextContent(text);
+      expect(status).toHaveAttribute('data-error-code', code);
+      expect(
+        screen.queryByRole('button', { name: 'Try again' }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it.each([
+    ['timeout', 'The widget did not respond in time.'],
+    [
+      'navigated',
+      'The widget opened another page and was stopped for security reasons.',
+    ],
+    ['load-failed', 'The widget could not be loaded.'],
+  ] as const)(
+    'should show a localised transient error (%s) with retry',
+    (code, text) => {
+      renderDisplay(createWrapper({ renderer, isUrlAllowed: allowWidgets }));
+      fireEvent.click(screen.getByRole('button', { name: 'Load widget' }));
+      const retry = vi.fn();
+      act(() =>
+        lastProps?.onStatusChange({
+          state: 'error',
+          reason: code === 'timeout' ? 'timeout' : 'load-failed',
+          code,
+          message: 'technical text',
+          retry,
+        }),
+      );
+
+      expect(
+        screen.getByTestId('element-element-0-embedded-widget-status'),
+      ).toHaveTextContent(text);
+      fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(retry).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('should deactivate a running widget whose URL changes remotely', () => {
+    const { rerender } = renderDisplay(
+      createWrapper({ renderer, isUrlAllowed: allowWidgets }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Load widget' }));
+    act(() => lastProps?.onStatusChange({ state: 'ready' }));
+    expect(renderer).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <EmbeddedWidgetDisplay
+        elementId="element-0"
+        {...shell}
+        widgetUrl="https://widgets.example.org/other/"
+        active={false}
+        readOnly={false}
+      />,
+    );
+
+    // Unmounted, not remounted with the new URL: a new activation is needed.
+    expect(unmountWidget).toHaveBeenCalledTimes(1);
+    expect(renderer).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByTestId('element-element-0-embedded-widget-mount'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('Widget not loaded.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load widget' }));
+    expect(renderer).toHaveBeenCalledTimes(2);
+    expect(lastProps?.widgetUrl).toBe('https://widgets.example.org/other/');
+  });
+
+  it('should not resume after a detour over a URL that is not allowed', () => {
+    const { rerender } = renderDisplay(
+      createWrapper({ renderer, isUrlAllowed: allowWidgets }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Load widget' }));
+    const show = (widgetUrl: string) =>
+      rerender(
+        <EmbeddedWidgetDisplay
+          elementId="element-0"
+          {...shell}
+          widgetUrl={widgetUrl}
+          active={false}
+          readOnly={false}
+        />,
+      );
+
+    show('https://evil.example.org/poll/');
+    expect(unmountWidget).toHaveBeenCalledTimes(1);
+    show(shell.widgetUrl);
+
+    expect(renderer).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Widget not loaded.')).toBeInTheDocument();
+  });
+
+  it('should show origin and path, never template parameters', () => {
+    renderDisplay(createWrapper(undefined), 'element-0', {
+      ...shell,
+      widgetUrl:
+        'https://call.example.org/room/?roomId=$matrix_room_id&user=$matrix_user_id#/x',
+    });
+    const url = screen.getByTestId('element-element-0-embedded-widget-url');
+    expect(url).toHaveTextContent('https://call.example.org/room/');
+    expect(url).toHaveAttribute('title', 'https://call.example.org/room/');
+    expect(url.textContent).not.toContain('$matrix');
+    expect(
+      screen.getByRole('group', { name: 'Team poll' }),
+    ).toBeInTheDocument();
+  });
+
+  it('should show only the origin if the path holds a template variable', () => {
+    renderDisplay(createWrapper(undefined), 'element-0', {
+      ...shell,
+      widgetUrl: 'https://call.example.org/$matrix_room_id/?a=1',
+    });
+    expect(
+      screen.getByTestId('element-element-0-embedded-widget-url'),
+    ).toHaveTextContent(/^https:\/\/call\.example\.org$/);
+  });
+
+  it('should leave the interaction with the "Leave widget" button', () => {
+    renderDisplay(createWrapper({ renderer, isUrlAllowed: allowWidgets }));
+    fireEvent.click(screen.getByRole('button', { name: 'Load widget' }));
+    act(() => lastProps?.onStatusChange({ state: 'ready' }));
+    const mount = screen.getByTestId('element-element-0-embedded-widget-mount');
+    expect(
+      screen.queryByRole('button', { name: 'Leave widget' }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.doubleClick(
+      screen.getByTestId('element-element-0-embedded-widget-content'),
+    );
+    expect(mount).toHaveStyle({ pointerEvents: 'auto' });
+    // One in the status bar, one after the widget for keyboard users.
+    const buttons = screen.getAllByRole('button', { name: 'Leave widget' });
+    expect(buttons).toHaveLength(2);
+
+    fireEvent.click(buttons[0]);
+    expect(mount).toHaveStyle({ pointerEvents: 'none' });
+    expect(
+      screen.queryByRole('button', { name: 'Leave widget' }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.doubleClick(
+      screen.getByTestId('element-element-0-embedded-widget-content'),
+    );
+    fireEvent.click(
+      screen.getByTestId('element-element-0-embedded-widget-leave-after'),
+    );
+    expect(mount).toHaveStyle({ pointerEvents: 'none' });
+    expect(renderer).toHaveBeenCalledTimes(1);
+  });
+
+  it('should warn about permissions that are not available here', () => {
+    renderDisplay(createWrapper({ renderer, isUrlAllowed: allowWidgets }));
+    fireEvent.click(screen.getByRole('button', { name: 'Load widget' }));
+    act(() =>
+      lastProps?.onStatusChange({
+        state: 'ready',
+        limits: {
+          requested: [
+            'org.matrix.msc2762.send.event:net.example.vote',
+            'org.matrix.msc2762.receive.event:net.example.vote',
+            'org.matrix.msc2762.timeline:*',
+          ],
+          blocked: ['org.matrix.msc2762.timeline:*'],
+        },
+      }),
+    );
+    const bar = screen.getByTestId(
+      'element-element-0-embedded-widget-statusbar',
+    );
+    expect(bar).toHaveAttribute('data-support', 'limited');
+    expect(bar).toHaveTextContent('Ready – double-click to use');
+    const limits = screen.getByTestId(
+      'element-element-0-embedded-widget-limits',
+    );
+    expect(limits).toHaveTextContent('1 of 3 permissions not available here');
+    expect(limits).toHaveAttribute(
+      'title',
+      'This board does not grant: org.matrix.msc2762.timeline:*',
+    );
+    expect(within(bar).getByRole('status')).toHaveTextContent(
+      'Team poll: Ready – double-click to use. 1 of 3 permissions not available here',
+    );
+  });
+
+  it('should show "not supported" when every write permission is blocked', () => {
+    renderDisplay(createWrapper({ renderer, isUrlAllowed: allowWidgets }));
+    fireEvent.click(screen.getByRole('button', { name: 'Load widget' }));
+    act(() =>
+      lastProps?.onStatusChange({
+        state: 'ready',
+        limits: {
+          requested: [
+            'org.matrix.msc2762.send.event:net.example.vote',
+            'org.matrix.msc2762.receive.event:net.example.vote',
+          ],
+          blocked: ['org.matrix.msc2762.send.event:net.example.vote'],
+        },
+      }),
+    );
+    const bar = screen.getByTestId(
+      'element-element-0-embedded-widget-statusbar',
+    );
+    expect(bar).toHaveAttribute('data-support', 'unsupported');
+    expect(
+      screen.getByTestId('element-element-0-embedded-widget-state'),
+    ).toHaveTextContent('Not supported here');
+    expect(bar).not.toHaveTextContent('Ready');
+    expect(within(bar).getByRole('status')).toHaveTextContent(
+      'Team poll: Not supported here. 1 of 2 permissions not available here',
+    );
   });
 
   it('should accept a cleanup function as renderer result', () => {
@@ -712,5 +955,30 @@ describe('<EmbeddedWidgetDisplay />', () => {
       createWrapper({ renderer, preload, isUrlAllowed: allowWidgets }, true),
     );
     expect(preload).not.toHaveBeenCalled();
+  });
+  it('should show a modal of the widget in a board dialog', () => {
+    renderDisplay(createWrapper({ renderer, isUrlAllowed: allowWidgets }));
+    fireEvent.click(screen.getByRole('button', { name: 'Load widget' }));
+    act(() => lastProps?.onStatusChange({ state: 'ready' }));
+
+    const cancel = vi.fn();
+    act(() =>
+      lastProps?.onModalChange?.({
+        name: 'Create poll',
+        origin: 'https://widgets.example.org',
+        buttons: [],
+        mount: () => () => {},
+        clickButton: vi.fn(),
+        cancel,
+      }),
+    );
+    expect(
+      screen.getByRole('dialog', { name: 'Create poll' }),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(cancel).toHaveBeenCalled();
+
+    act(() => lastProps?.onModalChange?.(undefined));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

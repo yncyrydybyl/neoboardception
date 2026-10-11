@@ -456,6 +456,33 @@ describe('decideEmbeddedWidget', () => {
     });
   });
 
+  it('modals: per rule, unset by default, invalid values fail closed', () => {
+    const withModals = valid({
+      widget_permissions: {
+        'https://poll.example.org/': { modals: 'inline' },
+        'https://fwd.example.org/': { modals: 'forward' },
+        'https://no.example.org/': { modals: 'deny' },
+      },
+    });
+    expect(
+      decideEmbeddedWidget(withModals, 'https://poll.example.org/'),
+    ).toMatchObject({ allowed: true, modals: 'inline' });
+    expect(
+      decideEmbeddedWidget(withModals, 'https://fwd.example.org/'),
+    ).toMatchObject({ modals: 'forward' });
+    expect(
+      decideEmbeddedWidget(withModals, 'https://no.example.org/'),
+    ).toMatchObject({ modals: 'deny' });
+    expect(
+      decideEmbeddedWidget(policy, 'https://poll.example.org/'),
+    ).not.toHaveProperty('modals');
+
+    const bad = parseEmbeddedWidgetPolicy({
+      widget_permissions: { 'https://poll.example.org/': { modals: 'yes' } },
+    });
+    expect(bad.ok).toBe(false);
+  });
+
   it('invalid URLs are denied', () => {
     expect(decideEmbeddedWidget(policy, 'http://poll.example.org/')).toEqual({
       allowed: false,

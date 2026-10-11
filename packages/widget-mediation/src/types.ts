@@ -78,6 +78,27 @@ export interface EmbeddedWidgetParams {
 
 export type EmbeddedWidgetErrorReason = 'denied' | 'load-failed' | 'timeout';
 
+/**
+ * Finer cause of an error, for user-facing messages. Permanent codes (see
+ * `isPermanentEmbeddedWidgetError`) cannot be fixed by retrying.
+ *
+ * - `invalid-url`: the URL (or the widget's configuration) was refused.
+ * - `origin-not-allowed`: the origin is not in `allowedOrigins`.
+ * - `same-origin`: the widget would share the host's origin.
+ * - `navigated`: the frame navigated away (its new origin is unknown).
+ * - `load-failed`: the frame or the Widget API handshake failed.
+ * - `timeout`: the widget did not load in time.
+ * - `denied`: no requested permission was granted.
+ */
+export type EmbeddedWidgetErrorCode =
+  | 'invalid-url'
+  | 'origin-not-allowed'
+  | 'same-origin'
+  | 'navigated'
+  | 'load-failed'
+  | 'timeout'
+  | 'denied';
+
 export type EmbeddedWidgetState =
   | { status: 'idle' }
   | { status: 'loading' }
@@ -93,6 +114,9 @@ export type EmbeddedWidgetState =
   | {
       status: 'error';
       reason: EmbeddedWidgetErrorReason;
+      /** Finer cause, for user-facing messages. */
+      code: EmbeddedWidgetErrorCode;
+      /** Technical description (English), for logs and details. */
       message: string;
       capabilities?: CapabilitySummary;
     };
@@ -158,7 +182,74 @@ export type UpdateStateMode =
    */
   | 'auto';
 
-export type ModalMode = 'forward' | 'deny';
+/**
+ * What happens when an embedded widget opens a modal (`open_modal`):
+ * - `deny` (default): refused;
+ * - `forward`: forwarded to the outer client, which opens a top-level modal
+ *   under the host's identity (and may ask for capabilities again);
+ * - `inline`: the host shows the modal itself (see `onModalRequest`), as a
+ *   second mediated widget instance limited to the capabilities the
+ *   embedded widget already holds. Nothing reaches the outer client.
+ */
+export type ModalMode = 'forward' | 'deny' | 'inline';
+
+/** A button of a modal widget (`open_modal` `buttons`). */
+export interface EmbeddedModalButton {
+  /** Button id; reported back to the modal widget when clicked. */
+  id: string;
+  label: string;
+  /** `m.primary`, `m.secondary`, `m.warning`, `m.danger`, `m.link`, … */
+  kind: string;
+  disabled: boolean;
+}
+
+export interface EmbeddedModalMountCallbacks {
+  /** State of the modal widget instance (loading, ready, error). */
+  onStateChange?: (state: EmbeddedWidgetState) => void;
+  /** The modal widget enabled or disabled a button. */
+  onButtonsChange?: (buttons: EmbeddedModalButton[]) => void;
+}
+
+/**
+ * A modal an embedded widget asked for, in `inline` mode. The host shows a
+ * dialog with `name` as its title, mounts the modal widget into it and
+ * renders `buttons`. The modal ends exactly once: the modal widget closes
+ * it (its data goes to the embedded widget), the host cancels it, or the
+ * embedded widget goes away. `closed` resolves then; the host removes its
+ * dialog.
+ */
+export interface EmbeddedModalRequest {
+  /** Widget id of the modal widget (`modal_` + the embedded widget's id). */
+  readonly widgetId: string;
+  /** Widget id of the embedded widget that opened the modal. */
+  readonly parentWidgetId: string;
+  /** Title requested by the widget (may be empty). */
+  readonly name: string;
+  /** Origin of the modal widget (always the embedded widget's origin). */
+  readonly origin: string;
+  /** Modal URL without query and fragment (safe to show). */
+  readonly url: string;
+  /** Buttons as requested (at most three, ids unique). */
+  readonly buttons: readonly EmbeddedModalButton[];
+  /** Resolves when the modal has ended, for whatever reason. */
+  readonly closed: Promise<void>;
+  /**
+   * Mounts the modal widget into `container` (the dialog's content). The
+   * returned function removes it again without ending the modal (a later
+   * `mount` starts the modal widget again). No effect once closed.
+   */
+  mount(
+    container: HTMLElement,
+    callbacks?: EmbeddedModalMountCallbacks,
+  ): () => void;
+  /** Reports a click on an enabled button to the modal widget. */
+  clickButton(id: string): void;
+  /**
+   * Ends the modal without a result (Cancel, Escape): the embedded widget
+   * receives `close_modal` with `{ "m.exited": true }`.
+   */
+  cancel(): void;
+}
 
 /** Whether OpenID requests of the embedded widget reach the outer client. */
 export type OpenIdMode = 'forward' | 'deny';
@@ -241,11 +332,17 @@ export interface MountEmbeddedWidgetOptions {
   /** Default `'never'` (matrix-widget-toolkit compatible). */
   updateState?: UpdateStateMode;
   /**
-   * Forward `open_modal` to the outer client. Default `'deny'`. Forwarding
-   * opens a top-level modal of the outer client under the host's identity;
-   * only the embedded widget's own origin is accepted as modal URL.
+   * Modals of the embedded widget (`open_modal`), see {@link ModalMode}.
+   * Default `'deny'`. Only the embedded widget's own origin is accepted as
+   * modal URL. `'inline'` needs `onModalRequest`, otherwise modals are
+   * refused.
    */
   modals?: ModalMode;
+  /**
+   * `inline` modals: the embedded widget opened a modal; the host shows it
+   * (see {@link EmbeddedModalRequest}). One modal per widget at a time.
+   */
+  onModalRequest?: (request: EmbeddedModalRequest) => void;
   /**
    * Forward OpenID requests (`get_openid`) to the outer client. Default
    * `'deny'`. The token identifies the **user** to the embedded widget's

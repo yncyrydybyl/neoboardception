@@ -70,7 +70,8 @@ The entry point has no side effects. Hosts should load it lazily
 | `maxCapabilityRequests`                          | `3`                    | Capability rounds that need the client's dialog, per mounted widget.                                                                                                                                     |
 | `urlParameters`                                  | all toolkit parameters | Which user/room parameters the widget receives. Others are left empty.                                                                                                                                   |
 | `updateState`                                    | `'never'`              | `'never'`: deliver state as `send_event`, do not advertise `update_state` (required for matrix-widget-toolkit widgets). `'auto'`: use `update_state` for widgets that support it.                        |
-| `modals`                                         | `'deny'`               | `'forward'` passes `open_modal` to the client (see below).                                                                                                                                               |
+| `modals`                                         | `'deny'`               | `'inline'`: the host shows the modal itself (`onModalRequest`); `'forward'`: passes `open_modal` to the client. See [Modals](#modals).                                                                   |
+| `onModalRequest`                                 | –                      | `'inline'` modals: called with an `EmbeddedModalRequest` the host shows in a dialog. Without it, `'inline'` refuses modals.                                                                              |
 | `openId`                                         | `'deny'`               | `'forward'` passes OpenID requests to the host's `requestOpenIDConnectToken()`; the token identifies the user to the widget's backend. Answers "pending" first, then the result.                         |
 | `sandboxSameOrigin`                              | `true`                 | Keep `allow-same-origin` in the sandbox.                                                                                                                                                                 |
 | `sandboxExtras`, `allow`, `title`                | –                      | Extra sandbox tokens (`allow-top-navigation*` is always dropped), permissions policy, iframe title.                                                                                                      |
@@ -103,7 +104,12 @@ idle → loading → negotiating → ready
 - `ready`: `capabilities` summarises `requested`, `granted`,
   `blockedByPolicy`, `deniedLocally` and `deniedUpstream`.
 - `error`: `denied` (nothing granted), `load-failed` (URL refused, origin not
-  allowed, frame navigated away, load error) or `timeout`.
+  allowed, frame navigated away, load error) or `timeout`. `code` names the
+  cause for user-facing messages: `invalid-url`, `origin-not-allowed`,
+  `same-origin`, `navigated`, `load-failed`, `timeout` or `denied`.
+  `isPermanentEmbeddedWidgetError(code)` is true for the first three: a
+  retry cannot help, so hosts should not offer one. `message` is a technical
+  English text for logs and details.
 
 ### Capability requests
 
@@ -305,7 +311,7 @@ it is on the hard deny-list. An operator can opt one widget in:
 | `org.matrix.msc2876.read_events`                                                                         | Checked, forwarded without `room_ids` for the own room, results filtered by the widget's grants. Identical concurrent reads share one round trip.                              |
 | `org.matrix.msc3869.read_relations`                                                                      | Forwarded, chunk filtered by the widget's grants.                                                                                                                              |
 | `org.matrix.msc2974.request_capabilities`                                                                | See above; limited by `maxCapabilityRequests` and a minimum interval.                                                                                                          |
-| `open_modal`                                                                                             | Denied by default. With `modals: 'forward'`, only for URLs on the widget's own (allowed) origin; one modal at a time.                                                          |
+| `open_modal`                                                                                             | Denied by default. `'inline'`/`'forward'`: only for URLs on the widget's own (allowed) origin; one modal at a time. See [Modals](#modals).                                     |
 | `content_loaded`                                                                                         | Acknowledged. The handshake starts on iframe `load` anyway.                                                                                                                    |
 | `get_openid`                                                                                             | Blocked by default. With `openId: 'forward'`, forwarded to the host's outer API.                                                                                               |
 | delayed/sticky events, `update_delayed_event`, `send_to_device`, `get_rtc_transports`, call host actions | MatrixRTC widgets only, see above.                                                                                                                                             |
@@ -316,10 +322,53 @@ it is on the hard deny-list. An operator can opt one widget in:
 | `send_event`                      | Delivered to every embedded widget that may receive it (own room only, deduplicated). This includes the echo of the widget's own events, which matrix-widget-toolkit waits for. |
 | `update_state`                    | Converted to `send_event` unless the widget uses `update_state`.                                                                                                                |
 | `theme_change`, `language_change` | Forwarded (theme name only).                                                                                                                                                    |
-| `close_modal`                     | Routed to the embedded widget that opened the modal; the host's own modals are left alone.                                                                                      |
+| `close_modal`                     | `'forward'`: routed to the embedded widget that opened the modal; the host's own modals are left alone.                                                                         |
 
 The host keeps answering the client's requests itself; the package only
 observes them, except `close_modal` for its own modals.
+
+### Modals
+
+matrix-widget-toolkit widgets (e.g. Matrix Poll) open a modal widget to
+create or edit content (`open_modal` with a URL on their own origin, a
+title, buttons and `data`) and act on its result (`close_modal`). Three
+modes per widget (`modals`):
+
+| Mode      | What happens                                                                                                                                                                                                                                                             |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `deny`    | Default. `open_modal` is answered with an error.                                                                                                                                                                                                                         |
+| `inline`  | The host shows the modal itself. The client sees nothing: no top-level modal, no capability dialog, no lifecycle rule for the modal URL.                                                                                                                                 |
+| `forward` | Fallback. `open_modal` goes to the client, which opens a top-level modal under the host's identity; it asks for the modal's capabilities itself (or a lifecycle rule for the modal URL approves them). `close_modal` comes back to the host and is routed to the opener. |
+
+`inline` in detail:
+
+1. The widget sends `open_modal`. The URL must be on the widget's own,
+   allowed origin; one modal per widget at a time. The request is
+   acknowledged and `onModalRequest` receives an `EmbeddedModalRequest`
+   (`name`, `origin`, `url` without query and fragment, up to three
+   `buttons`, `closed`).
+2. The host opens a dialog titled `name` and calls `request.mount(container)`.
+   This mounts a **second mediated instance** of the modal URL with the
+   widget id `modal_<embedded widget id>` (the toolkit enters modal mode only
+   for this prefix). Same origin check, parameters, namespace and denials as
+   the widget; its allow-list is the set the widget was **granted**, and it
+   never asks the client (`maxCapabilityRequests: 0`): capabilities the
+   widget holds are given without a dialog, anything else is refused. No
+   modals, OpenID or calls from inside a modal.
+3. Once the modal widget is ready it receives `widget_config` (its own open
+   request: `type`, `url`, `name`, `buttons`, `data`), like from the client.
+4. The host renders the buttons and calls `request.clickButton(id)`
+   (`button_clicked` to the modal widget, enabled buttons only). The modal
+   widget may enable and disable them (`set_button_enabled`; reported via
+   `onButtonsChange`; `m.close` and unknown ids are refused).
+5. The modal widget sends `close_modal` with its result: the modal ends, the
+   instance is removed and the embedded widget receives `close_modal` with
+   that data. `request.cancel()` (Cancel, Escape) ends it with
+   `{ "m.exited": true }`. If the embedded widget is removed or reloaded,
+   the modal ends silently. `request.closed` resolves in every case.
+
+`request.mount` returns a function that removes the instance without
+ending the modal (a dialog that remounts its content calls `mount` again).
 
 ### Iframe and messages
 
@@ -334,8 +383,8 @@ allow-popups-to-escape-sandbox allow-downloads` plus `allow-same-origin`
   differs from the host's). No `allow-top-navigation*`.
   `referrerpolicy="no-referrer"`, empty `allow` unless `mediaPermissions`
   delegates features (the host's frame must have them, too).
-- We validate `event.source` and `event.origin` ourselves on every inbound
-  message, in one capture-phase listener per window (constant cost,
+- `event.source` and `event.origin` of every inbound message are checked in
+  one capture-phase listener per window (constant cost,
   independent of the number of embedded widgets): messages carrying an
   embedded widget's id must come from its frame and origin, an embedded
   widget may not use any other widget id, and other Widget API messages must
@@ -355,8 +404,8 @@ allow-popups-to-escape-sandbox allow-downloads` plus `allow-same-origin`
   are: origins limited by deployment configuration, a capability allow-list
   with a hard deny-list, and local consent. Forwarded modals run top-level in
   the client under an id derived from the host's, which is one more reason
-  modals are off by default; rendering modals inside the host would avoid
-  this.
+  modals are off by default; `inline` modals avoid this and stay within the
+  widget's grants.
 - **Union only grows.** matrix-widget-api has no way to withdraw a requested
   capability, so the host's requested list grows for the session. Request
   capabilities only for widgets that are actually in the document.

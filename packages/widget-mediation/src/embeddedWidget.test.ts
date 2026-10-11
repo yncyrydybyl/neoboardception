@@ -18,16 +18,23 @@ import { WidgetApi } from 'matrix-widget-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { POLL_CAPABILITIES } from './capabilities';
 import { LOCAL_ECHO_MARKER, mountEmbeddedWidget } from './embeddedWidget';
+import { isPermanentEmbeddedWidgetError } from './errors';
 import { configureMediation } from './outerHub';
 import { prerequestCapabilities } from './prerequest';
 import { FakeInnerWidget } from './testing/fakeInnerWidget';
 import { FakeOuterApi } from './testing/fakeOuterApi';
 import type {
+  EmbeddedModalRequest,
   EmbeddedWidgetHandle,
   EmbeddedWidgetState,
   MountEmbeddedWidgetOptions,
   OuterWidgetApi,
 } from './types';
+
+function errorCode(handle: EmbeddedWidgetHandle) {
+  const state = handle.getState();
+  return state.status === 'error' ? state.code : undefined;
+}
 
 const ORIGIN = 'https://poll.example';
 const ROOM = '!room:example.org';
@@ -253,6 +260,7 @@ describe('handshake and capabilities', () => {
     expect(m.handle.getState()).toMatchObject({
       status: 'error',
       reason: 'denied',
+      code: 'denied',
       capabilities: { deniedUpstream: [SEND_VOTE, RECEIVE_VOTE] },
     });
     expect(m.inner.approved).toEqual([]);
@@ -344,7 +352,9 @@ describe('URL and loading', () => {
     expect(m.handle.getState()).toMatchObject({
       status: 'error',
       reason: 'load-failed',
+      code: 'origin-not-allowed',
     });
+    expect(isPermanentEmbeddedWidgetError(errorCode(m.handle))).toBe(true);
     expect(m.container.querySelector('iframe')).toBeNull();
   });
 
@@ -353,7 +363,10 @@ describe('URL and loading', () => {
       widgetUrl: 'http://poll.example/',
       allowedOrigins: ['http://poll.example'],
     });
-    expect(m.handle.getState()).toMatchObject({ reason: 'load-failed' });
+    expect(m.handle.getState()).toMatchObject({
+      reason: 'load-failed',
+      code: 'invalid-url',
+    });
   });
 
   it('builds the iframe with its own widget id and a safe sandbox', () => {
@@ -932,7 +945,9 @@ describe('security defaults', () => {
     expect(m.handle.getState()).toMatchObject({
       status: 'error',
       reason: 'load-failed',
+      code: 'navigated',
     });
+    expect(isPermanentEmbeddedWidgetError(errorCode(m.handle))).toBe(false);
     expect(m.container.querySelector('iframe')).toBeNull();
   });
 
@@ -943,7 +958,11 @@ describe('security defaults', () => {
       allowedOrigins: [host],
       allowInsecureLocalhost: true,
     });
-    expect(m.handle.getState()).toMatchObject({ reason: 'load-failed' });
+    expect(m.handle.getState()).toMatchObject({
+      reason: 'load-failed',
+      code: 'same-origin',
+    });
+    expect(isPermanentEmbeddedWidgetError(errorCode(m.handle))).toBe(true);
     expect(m.handle.iframe).toBeUndefined();
   });
 
@@ -1053,5 +1072,246 @@ describe('types', () => {
   it('accepts a matrix-widget-api WidgetApi as outer API', () => {
     const api: OuterWidgetApi = new WidgetApi('host', 'https://client.example');
     expect(api.transport.widgetId).toBe('host');
+  });
+});
+
+describe('inline modals', () => {
+  const MODAL_URL = `${ORIGIN}/create-poll#/?theme=light`;
+  const openData = {
+    type: 'm.custom',
+    url: MODAL_URL,
+    name: 'Create poll',
+    buttons: [
+      { id: 'save', label: 'Save', kind: 'm.primary', disabled: true },
+      { id: 'm.close', label: 'Cancel', kind: 'm.link' },
+    ],
+    data: { poll: { title: 'Draft' } },
+  };
+
+  async function openInline(
+    overrides: Partial<MountEmbeddedWidgetOptions> = {},
+  ) {
+    const outer = makeOuter();
+    const requests: EmbeddedModalRequest[] = [];
+    const parent = await boot(
+      mount(outer, {
+        modals: 'inline',
+        onModalRequest: (r) => requests.push(r),
+        ...overrides,
+      }),
+    );
+    return { outer, parent, requests };
+  }
+
+  function mountModal(
+    request: EmbeddedModalRequest,
+    innerCaps: string[] = [...POLL_CAPABILITIES],
+  ) {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const states: EmbeddedWidgetState[] = [];
+    const buttons = vi.fn();
+    const unmount = request.mount(container, {
+      onStateChange: (s) => states.push(s),
+      onButtonsChange: buttons,
+    });
+    const iframe = container.querySelector('iframe')!;
+    const inner = new FakeInnerWidget(iframe, request.widgetId, {
+      capabilities: innerCaps,
+    });
+    return { container, states, buttons, unmount, iframe, inner };
+  }
+
+  it('opens → mounts → button → close → the parent receives the data', async () => {
+    const { outer, parent, requests } = await openInline();
+    const renegotiations = outer.renegotiations.length;
+
+    expect(await parent.inner.request('open_modal', openData)).toEqual({});
+    expect(upwardCalls(outer, 'open_modal')).toHaveLength(0);
+    expect(requests).toHaveLength(1);
+    const request = requests[0];
+    expect(request).toMatchObject({
+      widgetId: `modal_${parent.handle.widgetId}`,
+      parentWidgetId: parent.handle.widgetId,
+      name: 'Create poll',
+      origin: ORIGIN,
+      url: `${ORIGIN}/create-poll`,
+    });
+    expect(request.buttons).toEqual([
+      { id: 'save', label: 'Save', kind: 'm.primary', disabled: true },
+      { id: 'm.close', label: 'Cancel', kind: 'm.link', disabled: false },
+    ]);
+
+    const modal = mountModal(request);
+    const src = new URL(modal.iframe.src);
+    expect(src.origin).toBe(ORIGIN);
+    expect(src.pathname).toBe('/create-poll');
+    expect(src.searchParams.get('widgetId')).toBe(request.widgetId);
+    modal.inner.load();
+    await waitFor(() => modal.states.at(-1)?.status === 'ready');
+    await waitFor(() => modal.inner.received_('widget_config').length === 1);
+    expect(modal.inner.received_('widget_config')[0].data).toMatchObject({
+      url: MODAL_URL,
+      name: 'Create poll',
+      data: { poll: { title: 'Draft' } },
+    });
+
+    // Buttons: the modal enables "save"; the built-in close is not its own.
+    expect(
+      await modal.inner.request('set_button_enabled', {
+        button: 'save',
+        enabled: true,
+      }),
+    ).toEqual({});
+    expect(modal.buttons).toHaveBeenLastCalledWith([
+      { id: 'save', label: 'Save', kind: 'm.primary', disabled: false },
+      { id: 'm.close', label: 'Cancel', kind: 'm.link', disabled: false },
+    ]);
+    for (const button of ['m.close', 'unknown']) {
+      const r = await modal.inner.request('set_button_enabled', {
+        button,
+        enabled: false,
+      });
+      expect(r.error).toBeDefined();
+    }
+    request.clickButton('save');
+    await waitFor(() => modal.inner.received_('button_clicked').length === 1);
+    expect(modal.inner.received_('button_clicked')[0].data).toEqual({
+      id: 'save',
+    });
+
+    expect(
+      await modal.inner.request('close_modal', { poll: { title: 'Q' } }),
+    ).toEqual({});
+    await request.closed;
+    await waitFor(() => parent.inner.received_('close_modal').length === 1);
+    expect(parent.inner.received_('close_modal')[0].data).toEqual({
+      poll: { title: 'Q' },
+    });
+    expect(modal.container.querySelector('iframe')).toBeNull();
+    // Nothing of this reached the outer client.
+    expect(outer.renegotiations).toHaveLength(renegotiations);
+    expect(upwardCalls(outer, 'open_modal')).toHaveLength(0);
+  });
+
+  it("limits the modal to the parent's grants without asking upward", async () => {
+    const { outer, parent, requests } = await openInline();
+    const renegotiations = outer.renegotiations.length;
+    await parent.inner.request('open_modal', openData);
+    const extra = 'org.matrix.msc2762.send.event:net.example.other';
+    const modal = mountModal(requests[0], [...POLL_CAPABILITIES, extra]);
+    modal.inner.load();
+    await waitFor(() => modal.states.at(-1)?.status === 'ready');
+
+    expect(new Set(modal.inner.approved)).toEqual(new Set(POLL_CAPABILITIES));
+    expect(outer.renegotiations).toHaveLength(renegotiations);
+    expect(outer.requested).not.toContain(extra);
+  });
+
+  it('gives the modal nothing the parent was not granted', async () => {
+    const { outer, parent, requests } = await openInline({
+      allowedCapabilities: POLL_CAPABILITIES.filter((c) => c !== SEND_VOTE),
+    });
+    await parent.inner.request('open_modal', openData);
+    const modal = mountModal(requests[0]);
+    modal.inner.load();
+    await waitFor(() => modal.states.at(-1)?.status === 'ready');
+    expect(modal.inner.approved).not.toContain(SEND_VOTE);
+    expect(outer.requested).not.toContain(SEND_VOTE);
+  });
+
+  it('cancel closes with m.exited; then a new modal may open', async () => {
+    const { parent, requests } = await openInline();
+    await parent.inner.request('open_modal', openData);
+    const modal = mountModal(requests[0]);
+    modal.inner.load();
+    requests[0].cancel();
+    await requests[0].closed;
+    await waitFor(() => parent.inner.received_('close_modal').length === 1);
+    expect(parent.inner.received_('close_modal')[0].data).toEqual({
+      'm.exited': true,
+    });
+    expect(modal.container.querySelector('iframe')).toBeNull();
+    // Closing twice delivers once.
+    requests[0].cancel();
+    await tick();
+    expect(parent.inner.received_('close_modal')).toHaveLength(1);
+
+    expect(await parent.inner.request('open_modal', openData)).toEqual({});
+    expect(requests).toHaveLength(2);
+  });
+
+  it('allows one modal per widget at a time', async () => {
+    const { parent, requests } = await openInline();
+    await parent.inner.request('open_modal', openData);
+    const second = await parent.inner.request('open_modal', openData);
+    expect(second.error).toBeDefined();
+    expect(requests).toHaveLength(1);
+  });
+
+  it('refuses modals of another origin, from a modal, and without a host UI', async () => {
+    const { parent, requests } = await openInline();
+    const foreign = await parent.inner.request('open_modal', {
+      ...openData,
+      url: 'https://evil.example/create-poll',
+    });
+    expect(foreign.error).toBeDefined();
+    expect(requests).toHaveLength(0);
+
+    await parent.inner.request('open_modal', openData);
+    const modal = mountModal(requests[0]);
+    modal.inner.load();
+    await waitFor(() => modal.states.at(-1)?.status === 'ready');
+    const nested = await modal.inner.request('open_modal', openData);
+    expect(nested.error).toBeDefined();
+
+    const noUi = await boot(
+      mount(makeOuter(), { widgetId: 'element-9', modals: 'inline' }),
+    );
+    const r = await noUi.inner.request('open_modal', openData);
+    expect(r.error).toBeDefined();
+  });
+
+  it('ends the modal silently when the parent goes away', async () => {
+    const { parent, requests } = await openInline();
+    await parent.inner.request('open_modal', openData);
+    const modal = mountModal(requests[0]);
+    modal.inner.load();
+    parent.handle.destroy();
+    await requests[0].closed;
+    expect(modal.container.querySelector('iframe')).toBeNull();
+    expect(parent.inner.received_('close_modal')).toHaveLength(0);
+  });
+
+  it('remounts the modal widget without ending the modal', async () => {
+    const { parent, requests } = await openInline();
+    await parent.inner.request('open_modal', openData);
+    const first = mountModal(requests[0]);
+    first.unmount();
+    expect(first.container.querySelector('iframe')).toBeNull();
+    const second = mountModal(requests[0]);
+    second.inner.load();
+    await waitFor(() => second.states.at(-1)?.status === 'ready');
+    expect(parent.inner.received_('close_modal')).toHaveLength(0);
+  });
+
+  it('leaves forward mode unchanged (no inline request)', async () => {
+    const outer = makeOuter();
+    outer.handlers['open_modal'] = () => ({});
+    const onModalRequest = vi.fn();
+    const m = await boot(mount(outer, { modals: 'forward', onModalRequest }));
+    expect(await m.inner.request('open_modal', openData)).toEqual({});
+    expect(upwardCalls(outer, 'open_modal')).toHaveLength(1);
+    expect(onModalRequest).not.toHaveBeenCalled();
+  });
+
+  it('keeps deny as the default even with a host UI', async () => {
+    const outer = makeOuter();
+    const onModalRequest = vi.fn();
+    const m = await boot(mount(outer, { onModalRequest }));
+    const r = await m.inner.request('open_modal', openData);
+    expect(r.error).toBeDefined();
+    expect(onModalRequest).not.toHaveBeenCalled();
+    expect(upwardCalls(outer, 'open_modal')).toHaveLength(0);
   });
 });

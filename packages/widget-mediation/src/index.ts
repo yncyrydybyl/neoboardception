@@ -26,6 +26,7 @@ export {
 } from './capabilities';
 export type { CapabilityPolicy, PolicyDecision } from './capabilities';
 export { LOCAL_ECHO_MARKER, mountEmbeddedWidget } from './embeddedWidget';
+export { isPermanentEmbeddedWidgetError } from './errors';
 export {
   ALWAYS_ON_SCREEN_CAPABILITY,
   CALL_HOST_ACTIONS,
@@ -77,6 +78,10 @@ export type {
   CapabilityRequestInfo,
   CapabilityRequestResult,
   CapabilitySummary,
+  EmbeddedModalButton,
+  EmbeddedModalMountCallbacks,
+  EmbeddedModalRequest,
+  EmbeddedWidgetErrorCode,
   EmbeddedWidgetErrorReason,
   EmbeddedWidgetHandle,
   EmbeddedWidgetParams,
@@ -93,7 +98,10 @@ export type {
   UpdateStateMode,
 } from './types';
 export {
+  WidgetUrlError,
   buildWidgetUrl,
   deriveEmbeddedWidgetId,
+  deriveModalWidgetId,
   validateWidgetUrl,
 } from './url';
+export type { WidgetUrlErrorCode } from './url';

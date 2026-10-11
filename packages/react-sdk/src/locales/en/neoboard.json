@@ -210,20 +210,47 @@
       "cancel": "Cancel",
       "errorInvalid": "Please enter a valid https address.",
       "errorPolicy": "This widget address is not allowed on this board.",
+      "helper": "Only widget addresses approved for this board can be embedded.",
       "submit": "Embed",
       "title": "Embed widget",
       "titleLabel": "Title (optional)",
       "urlLabel": "Widget address"
     },
     "embedTool": "Embed widget",
+    "error": {
+      "invalidUrl": "The widget address was refused.",
+      "navigated": "The widget opened another page and was stopped for security reasons.",
+      "policy": "This widget is not allowed in this deployment.",
+      "sameOrigin": "Widgets from the board’s own address cannot be embedded.",
+      "timeout": "The widget did not respond in time."
+    },
+    "leave": "Leave widget",
+    "leaveHint": "Click outside the widget or use “Leave widget” to return to the board.",
+    "limits": {
+      "detail": "This board does not grant: {{capabilities}}",
+      "text": "{{blocked}} of {{requested}} permissions not available here"
+    },
+    "modal": {
+      "close": "Close",
+      "error": "The content of this dialog could not be loaded.",
+      "loading": "Loading…",
+      "origin": "Content of the embedded widget from {{host}}. Data you enter here goes to this widget."
+    },
+    "removeCall": {
+      "cancel": "Cancel",
+      "confirm": "Delete and end call",
+      "text": "This element holds a running call. Deleting it removes it for everyone, and everyone in the call on this board leaves the call.",
+      "title": "The running call will end"
+    },
     "retry": "Try again",
     "state": {
       "error": "Error",
-      "interacting": "You are in the widget – Esc or click outside to leave",
+      "interacting": "You are in the widget",
       "loading": "Loading",
       "permissions": "Asking for permissions",
       "ready": "Ready – double-click to use",
-      "suspended": "Paused"
+      "suspended": "Paused",
+      "unsupported": "Not supported here"
     },
     "status": {
       "blocked": "This widget address is not allowed on this board.",

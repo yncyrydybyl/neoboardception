@@ -248,45 +248,54 @@ sequenceDiagram
 
 ## 4. Modal routing
 
-Matrix Poll opens Element modal widgets to create and edit polls and groups
-(`open_modal`). A modal is a top-level iframe in Element, not nested in
-NeoBoard.
+Matrix Poll opens a modal widget to create and edit polls and groups
+(`open_modal`). Per widget, the policy decides (`modals`): NeoBoard shows the
+modal itself (`inline`), Element shows it top-level (`forward`), or it is
+refused (`deny`, the mediation default).
 
 ```mermaid
 sequenceDiagram
   autonumber
   participant W as Embedded widget
   participant N as NeoBoard (mediator)
+  participant D as Board dialog + modal iframe (widget origin)
   participant E as Element Web
-  participant M as Modal iframe (widget origin)
 
   W->>N: open_modal (url on the widget's own origin)
   alt modals: 'deny' (default)
     N-->>W: error
-  else modals: 'forward'
-    Note over N: url origin must equal the widget's (allowed) origin, one modal at a time
+  else modals: 'inline'
+    Note over N: url origin must equal the widget's (allowed) origin, one modal per widget
+    N-->>W: ack
+    N->>D: dialog (title, buttons), second mediated instance, id modal_<embedded id>
+    D->>N: capability handshake: only what W was granted, nothing asked upward
+    N->>D: widget_config (url, name, buttons, data)
+    D-->>N: set_button_enabled / button_clicked
+    D->>N: close_modal with data (or Cancel/Escape: m.exited)
+    N->>W: close_modal with data
+  else modals: 'forward' (fallback)
     N->>E: open_modal (under NeoBoard's widget id)
-    E->>M: open top-level modal, id derived from NeoBoard's id
-    M->>E: own capability handshake (keyed on the modal's URL)
-    M-->>E: close with data
+    E->>E: top-level modal, id derived from NeoBoard's id, own capability handshake
     E->>N: close_modal (to NeoBoard)
     N->>W: close_modal (routed to the opener only)
   end
 ```
 
-- Default is `'deny'`. With it, Poll can show and count votes but cannot
-  create or edit polls inside the board.
+- `'inline'`: Element never sees the modal. The modal widget is a second
+  mediated instance in an accessible board dialog; its capabilities are the
+  intersection of what it asks for with what the embedded widget was
+  granted, so there is no further Element dialog and no lifecycle rule for
+  the modal URL. Escape and the close button cancel (`m.exited`); removing
+  or reloading the element ends the modal.
 - `'forward'` lets the embedded widget open a top-level client modal. The
   modal runs its own capability handshake in Element, keyed on the modal URL,
   so a hardened deployment needs a lifecycle rule for each modal path.
-- Alternative (not built): render modals inside NeoBoard, with the mediator
-  as host for the modal iframe (`widget_config`, `button_clicked`,
-  `set_button_enabled`, `close_modal`). Element would never see the embedded
-  widget's origin. More code, but cleaner consent.
+- With `'deny'`, Poll can show and count votes but cannot create or edit
+  polls inside the board.
 
-The board forwards modals for origins in
-`REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS` (default: none); rendering them
-inside NeoBoard is a follow-up.
+The board takes the mode from the policy rule (`modals`). Without one,
+origins in `REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS` get `forward` and all
+others `deny`.
 
 ## 5. Consent and identity
 
@@ -359,12 +368,12 @@ stateDiagram-v2
   Negotiating --> Ready: notify_capabilities
   Negotiating --> Error: denied (nothing granted)
   Ready --> Interacting: double click
-  Interacting --> Ready: Escape / pointer down outside
+  Interacting --> Ready: "Leave widget" / Escape / pointer down outside
   Ready --> Hidden: pan / zoom / off-viewport
   Interacting --> Hidden: pan / zoom / off-viewport
   Hidden --> Ready: visible again (events delivered from buffer)
-  Ready --> Placeholder: evicted from the live LRU
-  Error --> Loading: user retry
+  Ready --> Placeholder: evicted from the live LRU / widget URL changed
+  Error --> Loading: user retry (not for permanent errors)
   Placeholder --> [*]: element deleted
   Ready --> [*]: element deleted (iframe and grants torn down)
 ```
@@ -397,7 +406,7 @@ flowchart TB
   A1 --> A4["Mediation: capability allow-list per widget<br/>(policy or default Poll), plus hard deny-list"]
   CFG --> A5["NeoBoard origin: CSP frame-src<br/>CSP_FRAME_SRC = same origins"]
   CFG --> A6["Embedded widget origin: frame-ancestors<br/>Element and NeoBoard origins"]
-  CFG --> A7["Element: widget lifecycle module<br/>capabilities_approved for NeoBoard/*<br/>(union with Poll) and for modal URLs"]
+  CFG --> A7["Element: widget lifecycle module<br/>capabilities_approved for NeoBoard/*<br/>(union with Poll); modal URLs only for modals: forward"]
   CFG --> A8["Rooms: only admins may edit widgets"]
 ```
 

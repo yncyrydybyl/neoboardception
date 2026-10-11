@@ -149,8 +149,8 @@ integration tests (jsdom, fake client and fake embedded widget over
 - Default capability allow-list is Matrix Poll's list. A generic package
   should have no default allow-list and require one.
 - `matrix-widget-api` as peer dependency (`^1.18.0`); see A5.
-- Modals: default `'deny'`; decide whether to add host-rendered modals
-  (see `architecture.md` §4).
+- Modals: default `'deny'`; host-rendered modals (`'inline'`) and
+  `'forward'` are opt-in (see `architecture.md` §4).
 - Rate-limit defaults (aggregate 1 event per 2 s) are above Synapse's default
   `rc_message`; see `architecture.md` §6.
 

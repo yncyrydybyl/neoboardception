@@ -44,44 +44,6 @@
           "org.matrix.msc2762.receive.state_event:net.nordeck.poll.group",
           "org.matrix.msc2762.receive.state_event:m.room.power_levels"
         ]
-      },
-      "https://poll.example.org/create-poll": {
-        "capabilities_approved": [
-          "org.matrix.msc2762.send.event:net.nordeck.poll.vote",
-          "org.matrix.msc2762.receive.event:net.nordeck.poll.vote",
-          "org.matrix.msc2762.send.event:net.nordeck.poll.start",
-          "org.matrix.msc2762.receive.event:net.nordeck.poll.start",
-          "org.matrix.msc2762.send.state_event:net.nordeck.poll",
-          "org.matrix.msc2762.receive.state_event:net.nordeck.poll",
-          "org.matrix.msc2762.send.state_event:net.nordeck.poll.settings",
-          "org.matrix.msc2762.receive.state_event:net.nordeck.poll.settings",
-          "org.matrix.msc2762.send.state_event:net.nordeck.poll.group",
-          "org.matrix.msc2762.receive.state_event:net.nordeck.poll.group",
-          "org.matrix.msc2762.receive.state_event:m.room.power_levels",
-          "org.matrix.msc2762.receive.state_event:m.room.create",
-          "org.matrix.msc2762.receive.state_event:m.room.name",
-          "org.matrix.msc2762.receive.state_event:m.room.member",
-          "io.element.requires_client"
-        ]
-      },
-      "https://poll.example.org/admin/create-group": {
-        "capabilities_approved": [
-          "org.matrix.msc2762.send.event:net.nordeck.poll.vote",
-          "org.matrix.msc2762.receive.event:net.nordeck.poll.vote",
-          "org.matrix.msc2762.send.event:net.nordeck.poll.start",
-          "org.matrix.msc2762.receive.event:net.nordeck.poll.start",
-          "org.matrix.msc2762.send.state_event:net.nordeck.poll",
-          "org.matrix.msc2762.receive.state_event:net.nordeck.poll",
-          "org.matrix.msc2762.send.state_event:net.nordeck.poll.settings",
-          "org.matrix.msc2762.receive.state_event:net.nordeck.poll.settings",
-          "org.matrix.msc2762.send.state_event:net.nordeck.poll.group",
-          "org.matrix.msc2762.receive.state_event:net.nordeck.poll.group",
-          "org.matrix.msc2762.receive.state_event:m.room.power_levels",
-          "org.matrix.msc2762.receive.state_event:m.room.create",
-          "org.matrix.msc2762.receive.state_event:m.room.name",
-          "org.matrix.msc2762.receive.state_event:m.room.member",
-          "io.element.requires_client"
-        ]
       }
     }
   }

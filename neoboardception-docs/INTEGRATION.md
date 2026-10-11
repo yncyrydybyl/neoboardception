@@ -93,7 +93,7 @@ type EmbeddedWidgetRendererProps = {
   readOnly: boolean; // board is read-only for this user
   viewState: EmbeddedWidgetViewState; // initial view state
   onStatusChange: (status: EmbeddedWidgetRuntimeStatus) => void;
-  exitInteraction: () => void; // e.g. on Escape inside the iframe
+  exitInteraction: () => void; // leave interaction (if the renderer can tell)
   onActivity: (activity: EmbeddedWidgetActivity) => void; // shared change → glow
 };
 
@@ -116,22 +116,49 @@ type EmbeddedWidgetRuntimeStatus =
       request: EmbeddedWidgetConsentRequest; // origin, url, capabilities, upstream
       respond: (approved: boolean) => void;
     }
-  | { state: 'ready' } // hides the placeholder
+  | {
+      state: 'ready'; // hides the placeholder
+      limits?: { requested: readonly string[]; blocked: readonly string[] };
+    }
   | {
       state: 'error';
-      message?: string;
+      message?: string; // technical, not shown as main text (tooltip + console)
       reason?: 'denied' | 'load-failed' | 'timeout';
-      retry?: () => void; // board shows "Try again"
+      code?: EmbeddedWidgetErrorCode; // selects the localised message
+      retry?: () => void; // board shows "Try again" (never for permanent codes)
     };
+
+type EmbeddedWidgetErrorCode =
+  | 'policy' // permanent: not allowed by the deployment policy
+  | 'origin-not-allowed' // permanent
+  | 'same-origin' // permanent: widget on the board's own origin
+  | 'invalid-url' // permanent
+  | 'navigated' // the frame left its page and was stopped
+  | 'timeout'
+  | 'denied' // nothing granted
+  | 'load-failed';
 ```
 
 Contract:
 
 - Append the iframe (or anything else) to `container`; remove everything in
   `unmount`.
-- Mount happens once per live element. Remount happens when `widgetUrl`,
-  `elementId`, `capabilities` or `readOnly` change. Title, position and size
-  changes do not remount; the container follows geometry by itself.
+- Mount happens once per live element. Remount happens when `elementId`,
+  `capabilities` or `readOnly` change. Title, position and size changes do
+  not remount; the container follows geometry by itself.
+- A change of `widgetUrl` while the widget runs (e.g. another user edits the
+  document) unmounts and **deactivates** the element: it shows the
+  placeholder again and needs a new activation (and, with the mediation
+  renderer, consent for the new URL).
+- Report errors with a `code`: the board shows a localised text (de/en) for
+  it and keeps `message` for the tooltip and the console. Do not pass
+  `retry` for permanent codes (`policy`, `origin-not-allowed`,
+  `same-origin`, `invalid-url`); the board hides it for them anyway.
+- Report `limits` with `ready`: permissions the widget asked for that this
+  board refuses (policy, hard deny-list). The status bar then shows "x of y
+  permissions not available here" (warning icon and text), and "Not
+  supported here" instead of "Ready" when nothing is available or every
+  write permission (`*.send.*`) the widget asked for is refused.
 - `update` may be called with an unchanged view state.
 - The board sets `pointer-events` and `visibility` on the container. Do not
   override them on children (an iframe inherits `pointer-events: none`).
@@ -140,8 +167,10 @@ Contract:
 
 ## 4. Lifecycle on the board
 
-- **Placeholder by default.** An element shows icon, title (or host name), URL
-  and a status line. Nothing is mounted until the element is _live_.
+- **Placeholder by default.** An element shows icon, title (or host name),
+  origin and path of the URL (never query or fragment, so no `$matrix_*`
+  template parameters; only the origin if the path holds one) and a status
+  line. Nothing is mounted until the element is _live_.
 - **Live.** The user activates an element with "Load widget"; a host can call
   `useEmbeddedWidgetHost().activate(elementId)` (e.g. to auto-activate a few
   visible widgets). At most `maxLiveWidgets` (default 3) are live per client;
@@ -150,9 +179,17 @@ Contract:
   `EmbeddedWidgetPreview`; the PDF export draws a rectangle with title and URL.
 - **Interaction.** Double click on a live element enters interaction
   (`interactive: true`, container receives pointer events). Pointer down
-  outside the element or Escape leaves it. Escape pressed _inside_ the iframe
-  does not reach the board; a renderer may forward it by calling
-  `exitInteraction()`.
+  outside the element, Escape (while the focus is on the board) or the
+  **"Leave widget"** button leaves it. Key presses _inside_ the iframe never
+  reach the board, so the button is the keyboard way out: it sits in the
+  element's status bar (Shift+Tab out of the widget) and a second one
+  appears after the widget when it gets focus (Tab out of the widget). A
+  renderer may also call `exitInteraction()`.
+- **Deleting a running call.** While an element is pinned (a running call,
+  see `setKeepAlive`), the board's delete flows (Delete key, element bar,
+  context menu, cut) ask first ("The running call will end"). Hosts with
+  their own delete flows use `useEmbeddedWidgetHost().confirmRemoval(ids,
+remove)`.
 - **Pan/zoom and off-viewport.** While the viewport changes (and 150 ms after),
   and while the element is outside the viewport, the board hides the
   container and shows the placeholder (`gesturing` / `visible: false` in the

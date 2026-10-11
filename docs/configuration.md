@@ -63,7 +63,9 @@ REACT_APP_EMBEDDED_WIDGET_ALLOWED_ORIGINS=https://widgets.example.org,https://po
 
 # optional: Comma-separated subset of the allowed origins whose embedded
 # widgets may open modal dialogs in the Matrix client (forwarded under the
-# board's widget identity). Empty (default) denies modals.
+# board's widget identity). Empty (default) denies modals. A policy rule's
+# `modals` field wins; prefer `"modals": "inline"` there (the board shows the
+# modal itself, see below).
 REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS=https://poll.example.org
 
 # optional: Operator policy for embedded widgets, in the schema of Element's
@@ -104,6 +106,7 @@ REACT_APP_EMBEDDED_WIDGET_MAX_LIVE=3
       "name": "Poll",
       "preload_approved": true,
       "identity_approved": false,
+      "modals": "inline",
       "capabilities_approved": [
         "org.matrix.msc2762.send.event:net.nordeck.poll.vote",
         "org.matrix.msc2762.receive.event:net.nordeck.poll.vote"
@@ -130,6 +133,14 @@ REACT_APP_EMBEDDED_WIDGET_MAX_LIVE=3
   action.
 - **`identity_approved`**: the widget may request an OpenID token of the
   user (forwarded to the Matrix client). Default `false`.
+- **`modals`**: what happens when the widget opens a modal dialog (Matrix Poll
+  does this to create and edit polls). `inline`: the board shows it in its
+  own dialog, limited to what the widget was already granted; the Matrix
+  client shows nothing and asks for nothing. `forward`: the Matrix client
+  opens it on top under the board's identity (it may ask for permissions
+  again; a widget lifecycle rule for the modal URL avoids that). `deny`:
+  refused. Not set: `forward` for origins in
+  `REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS`, otherwise `deny`.
 - **`unlisted`**: `deny` (default) refuses widget URLs without a rule.
   `consent` allows them for allowed origins, with the default (Poll)
   allow-list and the board's consent panel.

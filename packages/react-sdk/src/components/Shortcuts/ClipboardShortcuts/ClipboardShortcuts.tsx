@@ -17,6 +17,7 @@
 import { useWidgetApi } from '@matrix-widget-toolkit/react';
 import { useCallback, useEffect } from 'react';
 import { useHotkeysContext } from 'react-hotkeys-hook';
+import { useEmbeddedWidgetHost } from '../../../embeddedWidget/EmbeddedWidgetProvider';
 import {
   calculateBoundingRectForElements,
   clampElementPosition,
@@ -72,6 +73,7 @@ export function ClipboardShortcuts() {
   const { activeScopes } = useHotkeysContext();
   const enableShortcuts = activeScopes.includes(HOTKEY_SCOPE_WHITEBOARD);
   const slideInstance = useWhiteboardSlideInstance();
+  const { confirmRemoval } = useEmbeddedWidgetHost();
   const { state: presentationState } = usePresentationMode();
   const isOnlyViewingPresentation =
     presentationState.type === 'presentation' && !presentationState.isEditMode;
@@ -136,13 +138,21 @@ export function ClipboardShortcuts() {
         elements: selectedElements,
       });
       writeIntoClipboardData(event.clipboardData, content);
-      slideInstance.removeElements(Object.keys(selectedElements));
+      const elementIds = Object.keys(selectedElements);
+      confirmRemoval(elementIds, () =>
+        slideInstance.removeElements(elementIds),
+      );
       event.preventDefault();
     };
 
     document.addEventListener('cut', handler);
     return () => document.removeEventListener('cut', handler);
-  }, [enableShortcuts, isOnlyViewingPresentation, slideInstance]);
+  }, [
+    enableShortcuts,
+    isOnlyViewingPresentation,
+    slideInstance,
+    confirmRemoval,
+  ]);
 
   const handlePasteImages = useCallback(
     async (files: File[], imageSizes: Size[], centerPosition: Point) => {

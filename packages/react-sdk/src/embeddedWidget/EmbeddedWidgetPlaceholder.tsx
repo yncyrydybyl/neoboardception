@@ -17,7 +17,9 @@
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import ExtensionOutlinedIcon from '@mui/icons-material/ExtensionOutlined';
 import { Box, Button, Typography } from '@mui/material';
+import { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
+import { EmbeddedWidgetErrorCode } from './renderer';
 
 /**
  * Why the widget is (not yet) shown. Local UI state only.
@@ -37,7 +39,13 @@ export type EmbeddedWidgetPlaceholderProps = {
   widgetUrl: string;
   title?: string;
   reason: EmbeddedWidgetPlaceholderReason;
-  errorMessage?: string;
+  /** Cause of an error; selects the localised text. */
+  errorCode?: EmbeddedWidgetErrorCode;
+  /**
+   * Technical error description (not localised). Only offered as details
+   * (tooltip), never as the main text.
+   */
+  errorDetails?: string;
   /** If set, a button to load (activate) the widget is shown. */
   onActivate?: () => void;
   /** If set, a retry button is shown (error state). */
@@ -53,6 +61,80 @@ function getHostname(widgetUrl: string): string | undefined {
 }
 
 /**
+ * Readable form of a widget URL: origin and path, without query and
+ * fragment (they carry widget parameters such as `$matrix_room_id`
+ * template variables). The path is left out if it contains a template
+ * variable itself. Invalid URLs are not shown.
+ */
+export function getDisplayUrl(widgetUrl: string): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(widgetUrl);
+  } catch {
+    return undefined;
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    return undefined;
+  }
+  let path: string;
+  try {
+    path = decodeURIComponent(url.pathname);
+  } catch {
+    path = url.pathname;
+  }
+  if (path === '/' || path.includes('$')) {
+    return url.origin;
+  }
+  return `${url.origin}${path}`;
+}
+
+/** Localized, user-facing text for an error code of an embedded widget. */
+export function getErrorText(
+  t: TFunction,
+  code: EmbeddedWidgetErrorCode | undefined,
+): string {
+  switch (code) {
+    case 'policy':
+    case 'origin-not-allowed':
+      return t(
+        'embeddedWidget.error.policy',
+        'This widget is not allowed in this deployment.',
+      );
+    case 'same-origin':
+      return t(
+        'embeddedWidget.error.sameOrigin',
+        'Widgets from the board’s own address cannot be embedded.',
+      );
+    case 'invalid-url':
+      return t(
+        'embeddedWidget.error.invalidUrl',
+        'The widget address was refused.',
+      );
+    case 'navigated':
+      return t(
+        'embeddedWidget.error.navigated',
+        'The widget opened another page and was stopped for security reasons.',
+      );
+    case 'timeout':
+      return t(
+        'embeddedWidget.error.timeout',
+        'The widget did not respond in time.',
+      );
+    case 'denied':
+      return t(
+        'embeddedWidget.status.denied',
+        'The widget did not get any permission and cannot run.',
+      );
+    case 'load-failed':
+    default:
+      return t(
+        'embeddedWidget.status.error',
+        'The widget could not be loaded.',
+      );
+  }
+}
+
+/**
  * Static placeholder of an embedded widget: icon, title and URL plus a short
  * status line. The visual design of the states is expected to be refined.
  */
@@ -61,7 +143,8 @@ export function EmbeddedWidgetPlaceholder({
   widgetUrl,
   title,
   reason,
-  errorMessage,
+  errorCode,
+  errorDetails,
   onActivate,
   onRetry,
 }: EmbeddedWidgetPlaceholderProps) {
@@ -72,6 +155,7 @@ export function EmbeddedWidgetPlaceholder({
       : (getHostname(widgetUrl) ??
         t('embeddedWidget.untitled', 'Embedded widget'));
 
+  const displayUrl = getDisplayUrl(widgetUrl);
   let status: string;
   switch (reason) {
     case 'blocked':
@@ -96,9 +180,7 @@ export function EmbeddedWidgetPlaceholder({
       );
       break;
     case 'error':
-      status =
-        errorMessage ??
-        t('embeddedWidget.status.error', 'The widget could not be loaded.');
+      status = getErrorText(t, errorCode);
       break;
     case 'preview':
     case 'inactive':
@@ -157,21 +239,28 @@ export function EmbeddedWidgetPlaceholder({
       >
         {displayTitle}
       </Typography>
-      <Typography
-        component="div"
-        variant="body2"
-        noWrap
-        title={widgetUrl}
-        sx={{ maxWidth: '100%', color: 'text.secondary' }}
-        data-testid={`element-${elementId}-embedded-widget-url`}
-      >
-        {widgetUrl}
-      </Typography>
+      {displayUrl !== undefined && (
+        <Typography
+          component="div"
+          variant="body2"
+          noWrap
+          title={displayUrl}
+          sx={{ maxWidth: '100%', color: 'text.secondary' }}
+          data-testid={`element-${elementId}-embedded-widget-url`}
+        >
+          {displayUrl}
+        </Typography>
+      )}
       <Typography
         component="div"
         variant="caption"
         role="status"
+        title={reason === 'error' ? errorDetails : undefined}
+        data-error-code={
+          reason === 'error' ? (errorCode ?? 'load-failed') : undefined
+        }
         sx={{ color: 'text.secondary' }}
+        data-testid={`element-${elementId}-embedded-widget-status`}
       >
         {status}
       </Typography>

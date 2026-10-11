@@ -27,6 +27,7 @@ import { loadEmbeddedWidgetConfig } from './config';
 import {
   boardOwnCapabilities,
   createMediationRenderer,
+  widgetConsentKey,
 } from './mediationRenderer';
 
 const POLL = 'https://poll.example.org';
@@ -182,7 +183,93 @@ describe('createMediationRenderer', () => {
     expect(mountOptions?.modals).toBe('forward');
   });
 
-  it('asks the user before granting and remembers the answer per origin', async () => {
+  it('lets the policy choose the modal mode (it wins over the origin list)', async () => {
+    const resolvePolicy = () => ({
+      preapproved: false,
+      identityApproved: false,
+      modals: 'deny' as const,
+    });
+    mountWidget(create([POLL], { resolvePolicy }).renderer, {
+      onModalChange: vi.fn(),
+    });
+    await flush();
+    expect(mountOptions?.modals).toBe('deny');
+    expect(mountOptions?.onModalRequest).toBeUndefined();
+  });
+
+  it('shows inline modals in the board and hides them when they end', async () => {
+    const resolvePolicy = () => ({
+      preapproved: false,
+      identityApproved: false,
+      modals: 'inline' as const,
+    });
+    const onModalChange = vi.fn();
+    mountWidget(create([], { resolvePolicy }).renderer, { onModalChange });
+    await flush();
+    expect(mountOptions?.modals).toBe('inline');
+
+    let close!: () => void;
+    const request = {
+      widgetId: 'modal_embedded-element-1',
+      parentWidgetId: 'embedded-element-1',
+      name: 'Create poll',
+      origin: POLL,
+      url: `${POLL}/create-poll`,
+      buttons: [
+        { id: 'save', label: 'Save', kind: 'm.primary', disabled: false },
+      ],
+      closed: new Promise<void>((resolve) => {
+        close = resolve;
+      }),
+      mount: vi.fn(() => vi.fn()),
+      clickButton: vi.fn(),
+      cancel: vi.fn(),
+    };
+    mountOptions?.onModalRequest?.(request);
+    expect(onModalChange).toHaveBeenCalledTimes(1);
+    const modal = onModalChange.mock.calls[0][0];
+    expect(modal).toMatchObject({ name: 'Create poll', origin: POLL });
+
+    const onStatusChange = vi.fn();
+    const container = document.createElement('div');
+    modal.mount(container, { onButtonsChange: vi.fn(), onStatusChange });
+    const callbacks = (request.mount.mock.calls[0] as unknown[])[1] as {
+      onStateChange: (s: { status: string }) => void;
+    };
+    callbacks.onStateChange({ status: 'ready' });
+    expect(onStatusChange).toHaveBeenCalledWith({ state: 'ready' });
+    callbacks.onStateChange({
+      status: 'error',
+      code: 'navigated',
+      message: 'navigated away',
+    } as { status: string });
+    expect(onStatusChange).toHaveBeenLastCalledWith({
+      state: 'error',
+      code: 'navigated',
+      message: 'navigated away',
+    });
+    modal.clickButton('save');
+    expect(request.clickButton).toHaveBeenCalledWith('save');
+    modal.cancel();
+    expect(request.cancel).toHaveBeenCalled();
+
+    close();
+    await flush();
+    expect(onModalChange).toHaveBeenLastCalledWith(undefined);
+  });
+
+  it('refuses inline modals when the board cannot show them', async () => {
+    const resolvePolicy = () => ({
+      preapproved: false,
+      identityApproved: false,
+      modals: 'inline' as const,
+    });
+    mountWidget(create([], { resolvePolicy }).renderer);
+    await flush();
+    expect(mountOptions?.modals).toBe('deny');
+  });
+
+  it('asks the user before granting and remembers the answer per widget URL', async () => {
     const { renderer } = create();
     mountWidget(renderer);
     await flush();
@@ -206,11 +293,41 @@ describe('createMediationRenderer', () => {
     await expect(answer).resolves.toBe(true);
     expect(statuses.at(-1)).toEqual({ state: 'negotiating', origin: POLL });
 
-    // A second widget of the same origin is not asked again.
-    mountWidget(renderer, { elementId: 'element-2' });
+    // A second element with the same widget (other parameters) is not
+    // asked again.
+    mountWidget(renderer, {
+      elementId: 'element-2',
+      widgetUrl: `${POLL}/poll/?room=$matrix_room_id#x`,
+    });
     await flush();
     await expect(mountOptions!.confirmCapabilities!(request)).resolves.toBe(
       true,
+    );
+
+    // Another widget on the same origin is asked again.
+    mountWidget(renderer, {
+      elementId: 'element-3',
+      widgetUrl: `${POLL}/other/`,
+    });
+    await flush();
+    const asked = statuses.length;
+    const other = mountOptions!.confirmCapabilities!({
+      ...request,
+      url: `${POLL}/other/`,
+    });
+    await flush();
+    expect(statuses.length).toBeGreaterThan(asked);
+    expect(statuses.at(-1)).toMatchObject({ state: 'consent' });
+    (statuses.at(-1) as { respond: (a: boolean) => void }).respond(false);
+    await expect(other).resolves.toBe(false);
+  });
+
+  it('keys the consent by normalised origin and path', () => {
+    expect(
+      widgetConsentKey('https://Poll.Example.org:443/a/../poll/?x=1#y'),
+    ).toBe('https://poll.example.org/poll/');
+    expect(widgetConsentKey('https://poll.example.org/poll/')).not.toBe(
+      widgetConsentKey('https://poll.example.org/other/'),
     );
   });
 
@@ -221,15 +338,85 @@ describe('createMediationRenderer', () => {
     mountOptions!.onStateChange!({
       status: 'error',
       reason: 'denied',
+      code: 'denied',
       message: 'x',
     });
     const error = statuses.at(-1) as Extract<
       EmbeddedWidgetRuntimeStatus,
       { state: 'error' }
     >;
-    expect(error).toMatchObject({ state: 'error', reason: 'denied' });
+    expect(error).toMatchObject({
+      state: 'error',
+      reason: 'denied',
+      code: 'denied',
+    });
     error.retry?.();
     expect(handle.retryCapabilities).toHaveBeenCalled();
+  });
+
+  it('passes the error code and offers no retry for permanent errors', async () => {
+    mountWidget(create().renderer);
+    await flush();
+
+    mountOptions!.onStateChange!({
+      status: 'error',
+      reason: 'load-failed',
+      code: 'origin-not-allowed',
+      message: 'Widget origin https://x.example is not in the allowed origins',
+    });
+    expect(statuses.at(-1)).toEqual({
+      state: 'error',
+      reason: 'load-failed',
+      code: 'origin-not-allowed',
+      message: 'Widget origin https://x.example is not in the allowed origins',
+    });
+
+    mountOptions!.onStateChange!({
+      status: 'error',
+      reason: 'timeout',
+      code: 'timeout',
+      message: 'The widget did not load in time',
+    });
+    const error = statuses.at(-1) as Extract<
+      EmbeddedWidgetRuntimeStatus,
+      { state: 'error' }
+    >;
+    expect(error).toMatchObject({ code: 'timeout' });
+    error.retry?.();
+    expect(handle.reload).toHaveBeenCalled();
+  });
+
+  it('refuses a widget without a policy with a permanent error', async () => {
+    mountWidget(create([], { resolvePolicy: () => undefined }).renderer);
+    await flush();
+    expect(statuses.at(-1)).toMatchObject({
+      state: 'error',
+      code: 'policy',
+    });
+    expect(statuses.at(-1)).not.toHaveProperty('retry');
+    expect(fakeModule.mountEmbeddedWidget).not.toHaveBeenCalled();
+  });
+
+  it('reports permissions blocked by the policy when ready', async () => {
+    mountWidget(create().renderer);
+    await flush();
+    mountOptions!.onStateChange!({
+      status: 'ready',
+      capabilities: {
+        requested: [VOTE, 'org.matrix.msc2762.timeline:*'],
+        granted: [VOTE],
+        blockedByPolicy: ['org.matrix.msc2762.timeline:*'],
+        deniedLocally: [],
+        deniedUpstream: [],
+      },
+    });
+    expect(statuses.at(-1)).toEqual({
+      state: 'ready',
+      limits: {
+        requested: [VOTE, 'org.matrix.msc2762.timeline:*'],
+        blocked: ['org.matrix.msc2762.timeline:*'],
+      },
+    });
   });
 
   it('reports the client dialog while it is open', async () => {
@@ -254,7 +441,10 @@ describe('createMediationRenderer', () => {
         deniedUpstream: [],
       },
     });
-    expect(statuses.at(-1)).toEqual({ state: 'ready' });
+    expect(statuses.at(-1)).toEqual({
+      state: 'ready',
+      limits: { requested: [], blocked: [] },
+    });
   });
 
   it('reports sent events as shared changes', async () => {
@@ -426,6 +616,7 @@ describe('createMediationRenderer', () => {
       expect(statuses.at(-1)).toEqual({
         state: 'ready',
         preapproved: { origin: POLL, name: 'Poll' },
+        limits: { requested: [VOTE], blocked: [] },
       });
     });
 

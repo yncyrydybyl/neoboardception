@@ -34,6 +34,7 @@ import {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useEmbeddedWidgetHost } from '../../../../embeddedWidget/EmbeddedWidgetProvider';
 import {
   isPositionClose,
   Point,
@@ -208,6 +209,7 @@ function ContextMenuOptions({
 }: ContextMenuOptionsProps) {
   const isLocked = useSlideIsLocked();
   const slideInstance = useWhiteboardSlideInstance();
+  const { confirmRemoval } = useEmbeddedWidgetHost();
   const elementIds = useSlideElementIds();
   const { t } = useTranslation('neoboard');
   const menuTitle = t('elementContextMenu.title', 'Element');
@@ -245,10 +247,12 @@ function ContextMenuOptions({
 
   const handleDelete = useCallback(() => {
     if (activeElementIds.length) {
-      slideInstance.removeElements(activeElementIds);
+      confirmRemoval(activeElementIds, () =>
+        slideInstance.removeElements(activeElementIds),
+      );
       handleClose();
     }
-  }, [activeElementIds, handleClose, slideInstance]);
+  }, [activeElementIds, handleClose, slideInstance, confirmRemoval]);
 
   const handleClickBringForward = useCallback(() => {
     if (activeElementIds.length === 1) {

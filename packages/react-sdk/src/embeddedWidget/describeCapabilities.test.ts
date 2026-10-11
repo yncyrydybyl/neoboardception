@@ -15,7 +15,10 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { groupCapabilities } from './describeCapabilities';
+import {
+  getEmbeddedWidgetSupport,
+  groupCapabilities,
+} from './describeCapabilities';
 
 describe('groupCapabilities', () => {
   it('groups read and write event types and flags the member list', () => {
@@ -45,5 +48,65 @@ describe('groupCapabilities', () => {
       write: [],
       other: [],
     });
+  });
+});
+
+describe('getEmbeddedWidgetSupport', () => {
+  const SEND_VOTE = 'org.matrix.msc2762.send.event:net.example.vote';
+  const READ_VOTE = 'org.matrix.msc2762.receive.event:net.example.vote';
+  const SEND_STATE = 'org.matrix.msc2762.send.state_event:net.example.poll';
+  const TO_DEVICE = 'org.matrix.msc3819.send.to_device:net.example.signal';
+
+  it('is full without limits or blocked permissions', () => {
+    expect(getEmbeddedWidgetSupport(undefined)).toEqual({
+      level: 'full',
+      requested: 0,
+      blocked: 0,
+      blockedCapabilities: [],
+    });
+    expect(
+      getEmbeddedWidgetSupport({ requested: [SEND_VOTE], blocked: [] }),
+    ).toMatchObject({ level: 'full', requested: 1, blocked: 0 });
+  });
+
+  it('is limited while some write permission remains', () => {
+    expect(
+      getEmbeddedWidgetSupport({
+        requested: [SEND_VOTE, READ_VOTE, TO_DEVICE],
+        blocked: [TO_DEVICE],
+      }),
+    ).toEqual({
+      level: 'limited',
+      requested: 3,
+      blocked: 1,
+      blockedCapabilities: [TO_DEVICE],
+    });
+  });
+
+  it('is unsupported when every write permission is blocked', () => {
+    expect(
+      getEmbeddedWidgetSupport({
+        requested: [SEND_VOTE, SEND_STATE, READ_VOTE],
+        blocked: [SEND_VOTE, SEND_STATE],
+      }),
+    ).toMatchObject({ level: 'unsupported', requested: 3, blocked: 2 });
+  });
+
+  it('is unsupported when everything is blocked', () => {
+    expect(
+      getEmbeddedWidgetSupport({
+        requested: [READ_VOTE],
+        blocked: [READ_VOTE],
+      }),
+    ).toMatchObject({ level: 'unsupported', requested: 1, blocked: 1 });
+  });
+
+  it('ignores client hints and counts blocked entries as requested', () => {
+    expect(
+      getEmbeddedWidgetSupport({
+        requested: ['io.element.requires_client', SEND_VOTE],
+        blocked: ['io.element.requires_client', READ_VOTE],
+      }),
+    ).toMatchObject({ level: 'limited', requested: 2, blocked: 1 });
   });
 });

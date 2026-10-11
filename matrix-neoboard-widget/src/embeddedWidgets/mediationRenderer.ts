@@ -15,19 +15,24 @@
  */
 
 import { WidgetApi } from '@matrix-widget-toolkit/api';
-import type {
-  EmbeddedWidgetConsentRequest,
-  EmbeddedWidgetPreapproval,
-  EmbeddedWidgetRenderer,
-  EmbeddedWidgetRendererProps,
-  EmbeddedWidgetRuntimeStatus,
+import {
+  isPermanentEmbeddedWidgetErrorCode,
+  type EmbeddedWidgetConsentRequest,
+  type EmbeddedWidgetModalStatus,
+  type EmbeddedWidgetPreapproval,
+  type EmbeddedWidgetRenderer,
+  type EmbeddedWidgetRendererProps,
+  type EmbeddedWidgetRuntimeStatus,
 } from '@nordeck/matrix-neoboard-react-sdk';
 import type {
   CapabilityRequestInfo,
+  CapabilitySummary,
+  EmbeddedModalRequest,
   EmbeddedWidgetHandle,
   EmbeddedWidgetState,
   OuterWidgetApi,
 } from '@nordeck/matrix-widget-mediation';
+import { policyMatchKey } from '@nordeck/matrix-widget-mediation/policy';
 import loglevel from 'loglevel';
 import type { EmbeddedWidgetMountPolicy } from './config';
 import { prepareNestedBoardPowerLevels } from './nestedBoard';
@@ -51,7 +56,8 @@ export type MediationRendererOptions = {
   allowedOrigins: readonly string[];
   /**
    * Origins whose widgets may open modals in the Matrix client
-   * (`open_modal` is forwarded under the board's identity). Default: none.
+   * (`open_modal` is forwarded under the board's identity), unless the
+   * widget's policy sets `modals`. Default: none.
    */
   modalOrigins?: readonly string[];
   /**
@@ -93,7 +99,9 @@ export function createMediationRenderer({
   loadMediation = () => import('@nordeck/matrix-widget-mediation'),
 }: MediationRendererOptions): MediationRenderer {
   let loading: Promise<{ m: MediationModule; widgetApi: WidgetApi }>;
-  // Capabilities the user agreed to in this session, per widget origin.
+  // Capabilities the user agreed to in this session, per widget URL (origin
+  // and path, normalised like the policy; query and fragment only carry
+  // parameters). Two widgets on one origin never share a consent.
   const consented = new Map<string, Set<string>>();
 
   const load = () => {
@@ -127,6 +135,7 @@ export function createMediationRenderer({
     } catch {
       origin = '';
     }
+    const consentKey = widgetConsentKey(props.widgetUrl);
     const widgetPolicy = resolvePolicy(props.widgetUrl);
     // The operator approved this widget in advance: no local consent, but
     // the board still names the widget (non-blocking notice).
@@ -134,6 +143,38 @@ export function createMediationRenderer({
       widgetPolicy?.preapproved
         ? { origin, name: widgetPolicy.name }
         : undefined;
+
+    // Policy `modals` wins; the origin list is the older `forward` switch.
+    // `inline` needs a board that can show the dialog.
+    let modals =
+      widgetPolicy?.modals ??
+      (modalOrigins.includes(origin) ? 'forward' : 'deny');
+    if (modals === 'inline' && !props.onModalChange) {
+      modals = 'deny';
+    }
+
+    /** `inline` modals: the board shows the modal in its own dialog. */
+    const onModalRequest = (request: EmbeddedModalRequest) => {
+      const show = props.onModalChange;
+      if (destroyed || !show) {
+        request.cancel();
+        return;
+      }
+      show({
+        name: request.name,
+        origin: request.origin,
+        buttons: request.buttons,
+        mount: (container, callbacks) =>
+          request.mount(container, {
+            onButtonsChange: callbacks.onButtonsChange,
+            onStateChange: (state) =>
+              callbacks.onStatusChange(modalStatus(state)),
+          }),
+        clickButton: (id) => request.clickButton(id),
+        cancel: () => request.cancel(),
+      });
+      void request.closed.then(() => !destroyed && show(undefined));
+    };
 
     const status = (s: EmbeddedWidgetRuntimeStatus) => {
       if (!destroyed) {
@@ -147,9 +188,9 @@ export function createMediationRenderer({
         pendingConsent = (approved) => {
           pendingConsent = undefined;
           if (approved) {
-            const set = consented.get(request.origin) ?? new Set<string>();
+            const set = consented.get(consentKey) ?? new Set<string>();
             request.capabilities.forEach((c) => set.add(c));
-            consented.set(request.origin, set);
+            consented.set(consentKey, set);
             status({ state: 'negotiating', origin: request.origin });
           }
           resolve(approved);
@@ -168,7 +209,7 @@ export function createMediationRenderer({
         // Only policy-allowed capabilities reach this hook.
         return true;
       }
-      const known = consented.get(request.origin);
+      const known = consented.get(consentKey);
       if (known && request.capabilities.every((c) => known.has(c))) {
         return true;
       }
@@ -198,7 +239,11 @@ export function createMediationRenderer({
           }
           return;
         case 'ready':
-          status({ state: 'ready', preapproved });
+          status({
+            state: 'ready',
+            preapproved,
+            limits: limitsOf(state.capabilities),
+          });
           if (widgetPolicy?.eventNamespace) {
             // A NeoBoard inside NeoBoard: let members write their session
             // state of the embedded board (only a moderator can do this).
@@ -210,17 +255,23 @@ export function createMediationRenderer({
             );
           }
           return;
-        case 'error':
+        case 'error': {
+          const code = state.code ?? state.reason;
           status({
             state: 'error',
             reason: state.reason,
-            message: state.reason === 'denied' ? undefined : state.message,
-            retry: () =>
-              state.reason === 'denied'
-                ? handle?.retryCapabilities()
-                : handle?.reload(),
+            code,
+            message: state.message,
+            // A retry cannot fix a refused URL or origin.
+            ...(!isPermanentEmbeddedWidgetErrorCode(code) && {
+              retry: () =>
+                state.reason === 'denied'
+                  ? handle?.retryCapabilities()
+                  : handle?.reload(),
+            }),
           });
           return;
+        }
       }
     };
 
@@ -233,6 +284,7 @@ export function createMediationRenderer({
         status({
           state: 'error',
           reason: 'load-failed',
+          code: 'policy',
           message: 'This widget is not allowed by the deployment policy',
         });
         return;
@@ -261,7 +313,7 @@ export function createMediationRenderer({
           allowed: policy.allowedCapabilities,
           denied: policy.deniedCapabilities,
         });
-        const known = consented.get(origin);
+        const known = consented.get(consentKey);
         const missing = allowed.filter((c) => !known?.has(c));
         if (missing.length > 0) {
           const approved = preapproved
@@ -311,7 +363,8 @@ export function createMediationRenderer({
           : {}),
         name: widgetPolicy.name ?? props.title,
         title: props.title,
-        modals: modalOrigins.includes(origin) ? 'forward' : 'deny',
+        modals,
+        ...(modals === 'inline' && { onModalRequest }),
         openId: widgetPolicy.identityApproved ? 'forward' : 'deny',
         // Calls: operator opt-in only (policy `matrixrtc`).
         ...(widgetPolicy.matrixRtc && {
@@ -348,7 +401,11 @@ export function createMediationRenderer({
     status({ state: 'loading' });
     mount().catch((error) => {
       loglevel.error('Could not mount the embedded widget', error);
-      status({ state: 'error', message: String(error?.message ?? error) });
+      status({
+        state: 'error',
+        code: 'load-failed',
+        message: String(error?.message ?? error),
+      });
     });
 
     return {
@@ -367,6 +424,39 @@ export function createMediationRenderer({
   };
 
   return { renderer, preload };
+}
+
+function modalStatus(state: EmbeddedWidgetState): EmbeddedWidgetModalStatus {
+  switch (state.status) {
+    case 'ready':
+      return { state: 'ready' };
+    case 'error':
+      return { state: 'error', code: state.code, message: state.message };
+    default:
+      return { state: 'loading' };
+  }
+}
+
+/**
+ * Key of the session consent: origin and path of the widget URL, normalised
+ * like the policy (query and fragment ignored).
+ */
+export function widgetConsentKey(widgetUrl: string): string {
+  const key = policyMatchKey(widgetUrl);
+  if (key !== undefined) return key;
+  try {
+    const url = new URL(widgetUrl);
+    return url.origin + url.pathname;
+  } catch {
+    return widgetUrl.split(/[?#]/)[0];
+  }
+}
+
+/** What the widget asked for and cannot get here (policy, hard limits). */
+function limitsOf(summary: CapabilitySummary | undefined) {
+  return summary
+    ? { requested: summary.requested, blocked: summary.blockedByPolicy }
+    : undefined;
 }
 
 function isPaused(viewState: EmbeddedWidgetRendererProps['viewState']) {

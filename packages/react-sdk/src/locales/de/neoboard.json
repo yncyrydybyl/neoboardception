@@ -210,20 +210,47 @@
       "cancel": "Abbrechen",
       "errorInvalid": "Bitte gib eine gültige https-Adresse ein.",
       "errorPolicy": "Diese Widget-Adresse ist auf diesem Board nicht erlaubt.",
+      "helper": "Nur für dieses Board freigegebene Widget-Adressen können eingebettet werden.",
       "submit": "Einbetten",
       "title": "Widget einbetten",
       "titleLabel": "Titel (optional)",
       "urlLabel": "Widget-Adresse"
     },
     "embedTool": "Widget einbetten",
+    "error": {
+      "invalidUrl": "Die Widget-Adresse wurde abgelehnt.",
+      "navigated": "Das Widget hat eine andere Seite geöffnet und wurde aus Sicherheitsgründen gestoppt.",
+      "policy": "Dieses Widget ist in dieser Umgebung nicht freigegeben.",
+      "sameOrigin": "Widgets von der Adresse des Boards selbst können nicht eingebettet werden.",
+      "timeout": "Das Widget hat nicht rechtzeitig geantwortet."
+    },
+    "leave": "Widget verlassen",
+    "leaveHint": "Klicke neben das Widget oder nutze „Widget verlassen“, um zum Board zurückzukehren.",
+    "limits": {
+      "detail": "Dieses Board gewährt nicht: {{capabilities}}",
+      "text": "{{blocked}} von {{requested}} Berechtigungen hier nicht verfügbar"
+    },
+    "modal": {
+      "close": "Schließen",
+      "error": "Der Inhalt dieses Dialogs konnte nicht geladen werden.",
+      "loading": "Wird geladen…",
+      "origin": "Inhalt des eingebetteten Widgets von {{host}}. Was du hier eingibst, geht an dieses Widget."
+    },
+    "removeCall": {
+      "cancel": "Abbrechen",
+      "confirm": "Löschen und Anruf beenden",
+      "text": "Dieses Element enthält einen laufenden Anruf. Beim Löschen verschwindet es für alle, und alle Teilnehmenden auf diesem Board verlassen den Anruf.",
+      "title": "Laufender Anruf wird beendet"
+    },
     "retry": "Erneut versuchen",
     "state": {
       "error": "Fehler",
-      "interacting": "Du bist im Widget – Esc oder Klick daneben zum Verlassen",
+      "interacting": "Du bist im Widget",
       "loading": "Lädt",
       "permissions": "Berechtigungen werden angefragt",
       "ready": "Bereit – Doppelklick zum Bedienen",
-      "suspended": "Pausiert"
+      "suspended": "Pausiert",
+      "unsupported": "Hier nicht unterstützt"
     },
     "status": {
       "blocked": "Diese Widget-Adresse ist auf diesem Board nicht erlaubt.",

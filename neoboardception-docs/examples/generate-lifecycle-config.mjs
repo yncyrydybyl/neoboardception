@@ -20,7 +20,14 @@
  *   --poll-url      https://poll.example.org       origin Matrix Poll is served from
  *   --module-url    /modules/widget-lifecycle/index.js   where Element loads the module from
  *   --rtc           matrixrtc | webrtc             NeoBoard's REACT_APP_RTC (default matrixrtc)
- *   --no-modals     omit the Poll modal rules (mediation option modals: 'deny')
+ *   --modals        inline | forward | deny (default inline): how Poll's modals
+ *                   (create/edit poll or group) open. inline: NeoBoard shows
+ *                   them itself (policy field modals), no lifecycle rule and no
+ *                   client dialog needed. forward: the client opens them
+ *                   top-level under NeoBoard's identity; adds the exact Poll
+ *                   modal rules and REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS.
+ *                   deny: no modals (Poll cannot create polls).
+ *   --no-modals     same as --modals deny
  *   --preapprove    set preload_approved in NeoBoard's policy for Poll: no local
  *                   consent panel in the board (a notice still names the widget)
  *   --initial-union set REACT_APP_EMBEDDED_WIDGET_INITIAL_UNION=true in the env
@@ -64,7 +71,11 @@ const nestedOrigin = opt('nested-neoboard-url', '')
   : undefined;
 const moduleUrl = opt('module-url', '/modules/widget-lifecycle/index.js');
 const rtc = opt('rtc', 'matrixrtc');
-const withModals = !flag('no-modals');
+const modals = flag('no-modals') ? 'deny' : opt('modals', 'inline');
+if (!['inline', 'forward', 'deny'].includes(modals))
+  fail(`--modals must be inline, forward or deny`);
+// Only forwarded modals reach the client and need its lifecycle rules.
+const withModalRules = modals === 'forward';
 const preapprove = flag('preapprove');
 const initialUnion = flag('initial-union');
 const omit = new Set(
@@ -351,7 +362,7 @@ function rules(variant) {
     preload_approved: true,
     capabilities_approved: neoboardRule,
   };
-  if (withModals)
+  if (withModalRules)
     for (const p of POLL_MODAL_PATHS)
       r[variant === 'v2' ? `${pollOrigin}${p}#*` : `${pollOrigin}${p}`] = {
         capabilities_approved: pollCaps,
@@ -379,6 +390,7 @@ const policy = {
       name: 'Poll',
       preload_approved: preapprove,
       identity_approved: false,
+      modals,
       capabilities_approved: pollCaps,
     },
     ...(nested
@@ -439,9 +451,10 @@ REACT_APP_EMBEDDED_WIDGET_POLICY=base64:${policyBase64}
 # then also hold the Poll capabilities.
 ${initialUnion ? '' : '# '}REACT_APP_EMBEDDED_WIDGET_INITIAL_UNION=true
 
-# Optional: origins whose embedded widgets may open client modals (needed to
-# create polls; see the modal rules in config.runtime.json).
-${withModals ? '' : '# '}REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS=${pollOrigin}
+# Optional, only without a policy rule field "modals": origins whose embedded
+# widgets may open modals in the client (forward; needs the modal rules in
+# config.runtime.json). The policy above sets "modals" for Poll (${modals}).
+${withModalRules ? '' : '# '}REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS=${pollOrigin}
 
 # Optional: capabilities (exact strings) in addition to the Poll defaults.
 # Without a policy, every allowed widget gets them; with a policy, this is an

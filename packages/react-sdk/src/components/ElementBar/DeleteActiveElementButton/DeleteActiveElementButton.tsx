@@ -17,6 +17,7 @@
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useEmbeddedWidgetHost } from '../../../embeddedWidget/EmbeddedWidgetProvider';
 import { useActiveElements, useWhiteboardSlideInstance } from '../../../state';
 import { ToolbarButton } from '../../common/Toolbar';
 
@@ -24,12 +25,15 @@ export function DeleteActiveElementButton() {
   const { t } = useTranslation('neoboard');
   const { activeElementIds } = useActiveElements();
   const slideInstance = useWhiteboardSlideInstance();
+  const { confirmRemoval } = useEmbeddedWidgetHost();
 
   const handleDelete = useCallback(() => {
     if (activeElementIds.length) {
-      slideInstance.removeElements(activeElementIds);
+      confirmRemoval(activeElementIds, () =>
+        slideInstance.removeElements(activeElementIds),
+      );
     }
-  }, [activeElementIds, slideInstance]);
+  }, [activeElementIds, slideInstance, confirmRemoval]);
 
   const deleteActiveElementLabel = t(
     'elementBar.deleteElement',

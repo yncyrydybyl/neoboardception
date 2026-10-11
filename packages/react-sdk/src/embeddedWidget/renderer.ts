@@ -40,15 +40,76 @@ export type EmbeddedWidgetRuntimeStatus =
       request: EmbeddedWidgetConsentRequest;
       respond: (approved: boolean) => void;
     }
-  | { state: 'ready'; preapproved?: EmbeddedWidgetPreapproval }
+  | {
+      state: 'ready';
+      preapproved?: EmbeddedWidgetPreapproval;
+      /** Permissions the widget asked for that it cannot get here. */
+      limits?: EmbeddedWidgetCapabilityLimits;
+    }
   | {
       state: 'error';
+      /**
+       * Technical description (not localised). The board shows a localised
+       * text for `code` and keeps this one for details and logs.
+       */
       message?: string;
       /** `denied`: no permission was granted. */
       reason?: 'denied' | 'load-failed' | 'timeout';
-      /** If set, the board offers a retry button (explicit user action). */
+      /** Finer cause, selects the localised message. */
+      code?: EmbeddedWidgetErrorCode;
+      /**
+       * If set, the board offers a retry button (explicit user action).
+       * Never offered for permanent errors (see
+       * {@link isPermanentEmbeddedWidgetErrorCode}).
+       */
       retry?: () => void;
     };
+
+/**
+ * Cause of an embedded widget error, for localised messages.
+ *
+ * - `policy`: the deployment's policy does not allow this widget.
+ * - `origin-not-allowed`: the widget's origin is not allowed.
+ * - `same-origin`: the widget would run on the board's own origin.
+ * - `invalid-url`: the widget URL was refused.
+ * - `navigated`: the widget left its page and was stopped.
+ * - `timeout`: the widget did not load in time.
+ * - `denied`: no permission was granted.
+ * - `load-failed`: anything else while loading.
+ */
+export type EmbeddedWidgetErrorCode =
+  | 'policy'
+  | 'origin-not-allowed'
+  | 'same-origin'
+  | 'invalid-url'
+  | 'navigated'
+  | 'timeout'
+  | 'denied'
+  | 'load-failed';
+
+/** Errors that a retry cannot fix (the configuration or URL must change). */
+export function isPermanentEmbeddedWidgetErrorCode(
+  code: EmbeddedWidgetErrorCode | undefined,
+): boolean {
+  return (
+    code === 'policy' ||
+    code === 'origin-not-allowed' ||
+    code === 'same-origin' ||
+    code === 'invalid-url'
+  );
+}
+
+/**
+ * Permissions an embedded widget asked for but cannot get on this board,
+ * because the deployment's policy or the board's hard limits refuse them
+ * (not because the user declined). Local UI only.
+ */
+export type EmbeddedWidgetCapabilityLimits = {
+  /** Everything the widget asked for. */
+  requested: readonly string[];
+  /** The part of `requested` that is not available here. */
+  blocked: readonly string[];
+};
 
 /**
  * The deployment's operator approved the widget's permissions in advance, so
@@ -76,6 +137,55 @@ export type EmbeddedWidgetConsentRequest = {
    * without this consent.
    */
   upstream: readonly string[];
+};
+
+/** A button of an embedded widget's modal. */
+export type EmbeddedWidgetModalButton = {
+  id: string;
+  label: string;
+  /** `m.primary`, `m.secondary`, `m.warning`, `m.danger`, `m.link`, … */
+  kind: string;
+  disabled: boolean;
+};
+
+/** Local status of the widget shown inside a modal. */
+export type EmbeddedWidgetModalStatus =
+  | { state: 'loading' }
+  | { state: 'ready' }
+  | {
+      state: 'error';
+      /** Finer cause, selects the user-facing message. */
+      code?: EmbeddedWidgetErrorCode;
+      /** Technical description (English), for logs. */
+      message?: string;
+    };
+
+/**
+ * A modal the embedded widget opened, shown by the board in a dialog (not
+ * by the Matrix client). The renderer reports it with `onModalChange` and
+ * reports `undefined` when it ended.
+ */
+export type EmbeddedWidgetModal = {
+  /** Title requested by the widget (may be empty). */
+  name: string;
+  /** Origin of the modal's content (the embedded widget's origin). */
+  origin: string;
+  buttons: readonly EmbeddedWidgetModalButton[];
+  /**
+   * Mounts the modal's content (a widget iframe) into `container`. Returns
+   * a cleanup function that removes it again.
+   */
+  mount: (
+    container: HTMLElement,
+    callbacks: {
+      onButtonsChange: (buttons: EmbeddedWidgetModalButton[]) => void;
+      onStatusChange: (status: EmbeddedWidgetModalStatus) => void;
+    },
+  ) => () => void;
+  /** The user clicked one of `buttons`. */
+  clickButton: (id: string) => void;
+  /** The user dismissed the dialog (close button, Escape). */
+  cancel: () => void;
 };
 
 /** Something the widget did that is visible to other room members. */
@@ -124,7 +234,9 @@ export type EmbeddedWidgetRendererProps = {
   /**
    * The widget URL from the board document. Already validated (https, no
    * credentials) and accepted by the configured URL policy. Matrix widget
-   * template variables are *not* substituted yet.
+   * template variables are *not* substituted yet. A change of the URL in the
+   * board document never remounts: the board deactivates the element, so
+   * the user has to load it again (and consent again).
    */
   widgetUrl: string;
   /** Id of the board element; stable for the lifetime of the element. */
@@ -160,6 +272,11 @@ export type EmbeddedWidgetRendererProps = {
    * never unmounts it to make room for other live widgets. Local only.
    */
   setKeepAlive?: (keepAlive: boolean) => void;
+  /**
+   * The widget opened a modal (or `undefined`: it ended). The board shows
+   * it in a dialog. At most one per widget. Local only.
+   */
+  onModalChange?: (modal: EmbeddedWidgetModal | undefined) => void;
 };
 
 export type EmbeddedWidgetMountHandle = {
@@ -179,8 +296,10 @@ export type EmbeddedWidgetMountHandle = {
  * recently activated widgets are unmounted first).
  *
  * The board unmounts when the element is removed or deactivated, and
- * remounts when `widgetUrl`, `elementId`, `capabilities` or `readOnly`
- * change. Title and geometry changes do not remount.
+ * remounts when `elementId`, `capabilities` or `readOnly` change. A change
+ * of `widgetUrl` (e.g. by another user) unmounts and deactivates the
+ * element; it needs a new activation. Title and geometry changes do not
+ * remount.
  */
 export type EmbeddedWidgetRenderer = (
   props: EmbeddedWidgetRendererProps,

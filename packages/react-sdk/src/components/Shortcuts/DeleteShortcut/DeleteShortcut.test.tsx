@@ -15,10 +15,14 @@
  */
 
 import { MockedWidgetApi, mockWidgetApi } from '@matrix-widget-toolkit/testing';
-import { render } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ComponentType, PropsWithChildren } from 'react';
+import { ComponentType, PropsWithChildren, useEffect } from 'react';
 import { Mocked, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+  EmbeddedWidgetProvider,
+  useEmbeddedWidgetHost,
+} from '../../../embeddedWidget/EmbeddedWidgetProvider';
 import {
   DisableWhiteboardHotkeys,
   WhiteboardTestingContextProvider,
@@ -104,6 +108,31 @@ describe('<DeleteShortcut>', () => {
         .some((elementId) => elementIds.includes(elementId)),
     ).toBeFalsy();
     expect(activeSlide.getActiveElementIds()).toHaveLength(0);
+  });
+
+  it('should ask before deleting an element with a running call', async () => {
+    const activeSlide = activeWhiteboardInstance.getSlide('slide-0');
+    activeSlide.setActiveElementIds(['element-1']);
+    function PinCall() {
+      const { setPinned } = useEmbeddedWidgetHost();
+      useEffect(() => setPinned('element-1', true), [setPinned]);
+      return null;
+    }
+
+    render(
+      <EmbeddedWidgetProvider>
+        <PinCall />
+        <DeleteShortcut />
+      </EmbeddedWidgetProvider>,
+      { wrapper: Wrapper },
+    );
+
+    await userEvent.keyboard('{delete}');
+    expect(activeSlide.getElement('element-1')).toBeDefined();
+    const confirm = screen.getByRole('button', { name: 'Delete and end call' });
+
+    act(() => confirm.click());
+    expect(activeSlide.getElement('element-1')).toBeUndefined();
   });
 
   it.each(['{delete}', '{backspace}'])(

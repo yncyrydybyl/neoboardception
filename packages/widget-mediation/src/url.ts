@@ -49,7 +49,21 @@ const DEFAULT_PARAMETER_TEMPLATES: ReadonlyArray<[string, string]> = [
 /** Query parameters set by the host; a template must not define them. */
 const HOST_PARAMETERS = ['widgetId', 'parentUrl'];
 
-export class WidgetUrlError extends Error {}
+/**
+ * Why a widget URL was refused. `same-origin`: the widget would share the
+ * host's origin. Everything else is `invalid`.
+ */
+export type WidgetUrlErrorCode = 'invalid' | 'same-origin';
+
+export class WidgetUrlError extends Error {
+  constructor(
+    message: string,
+    readonly code: WidgetUrlErrorCode = 'invalid',
+  ) {
+    super(message);
+    this.name = 'WidgetUrlError';
+  }
+}
 
 export interface ValidateUrlOptions {
   hostOrigin: string;
@@ -84,6 +98,7 @@ export function validateWidgetUrl(
   if (url.origin === hostOrigin) {
     throw new WidgetUrlError(
       'Embedded widgets must not share the origin of the host widget',
+      'same-origin',
     );
   }
   return url;
@@ -107,6 +122,16 @@ export function deriveEmbeddedWidgetId(
     );
   }
   return derived;
+}
+
+/**
+ * Widget id of a modal opened by an embedded widget and shown by the host
+ * (`inline` modals): `modal_` + the embedded widget's id, like the outer
+ * client does for its own modals. matrix-widget-toolkit widgets switch to
+ * modal mode (and wait for `widget_config`) only for this prefix.
+ */
+export function deriveModalWidgetId(embeddedWidgetId: string): string {
+  return `modal_${embeddedWidgetId}`;
 }
 
 function presentKeys(url: URL): Set<string> {

@@ -40,6 +40,12 @@ import {
 } from './capabilities';
 import { DriverHost, ForwardingDriver } from './driver';
 import {
+  InlineModal,
+  ModalContext,
+  ModalInstance,
+  parseModalSpec,
+} from './inlineModal';
+import {
   ALWAYS_ON_SCREEN_CAPABILITY,
   buildAllowAttribute,
   CALL_HOST_ACTIONS,
@@ -58,6 +64,9 @@ import type {
   CapabilityRequestInfo,
   CapabilityRequestResult,
   CapabilitySummary,
+  EmbeddedModalRequest,
+  EmbeddedWidgetErrorCode,
+  EmbeddedWidgetErrorReason,
   EmbeddedWidgetHandle,
   EmbeddedWidgetState,
   MountEmbeddedWidgetOptions,
@@ -66,6 +75,7 @@ import type {
 import {
   buildWidgetUrl,
   deriveEmbeddedWidgetId,
+  deriveModalWidgetId,
   displayUrl,
   validateWidgetUrl,
   WidgetUrlError,
@@ -182,8 +192,17 @@ class EmbeddedWidget implements EmbeddedWidgetHandle, HubMember, DriverHost {
   /** MatrixRTC opt-in: exact capability strings exempt from the hard deny-list. */
   private readonly rtcCapabilities: readonly string[];
   private _rtc: RtcBridge | undefined;
+  /** `inline` mode: the modal this widget opened, if any. */
+  private modal: InlineModal | undefined;
 
-  constructor(private readonly o: MountEmbeddedWidgetOptions) {
+  /**
+   * @param modalContext - set when this instance *is* an inline modal
+   * (opened by another embedded widget); it then uses the modal's widget id.
+   */
+  constructor(
+    private readonly o: MountEmbeddedWidgetOptions,
+    private readonly modalContext?: ModalContext,
+  ) {
     this.roomId = o.params.roomId;
     this.rtcCapabilities = o.matrixRtc
       ? matrixRtcCapabilities({
@@ -196,10 +215,9 @@ class EmbeddedWidget implements EmbeddedWidgetHandle, HubMember, DriverHost {
       o.allowedOrigins.map(normaliseOrigin).filter((x): x is string => !!x),
     );
     const syncOuter = isPromiseLike(o.outerApi) ? undefined : o.outerApi;
-    this.widgetId = deriveEmbeddedWidgetId(
-      o.widgetId,
-      syncOuter?.transport.widgetId,
-    );
+    this.widgetId =
+      modalContext?.widgetId ??
+      deriveEmbeddedWidgetId(o.widgetId, syncOuter?.transport.widgetId);
     this.bucket = new TokenBucket(o.rateLimit ?? DEFAULTS.rateLimit);
     this.toDeviceBucket = new TokenBucket(
       o.toDeviceRateLimit ??
@@ -230,7 +248,11 @@ class EmbeddedWidget implements EmbeddedWidgetHandle, HubMember, DriverHost {
       return hub;
     });
     this.hubReady.catch((e) =>
-      this.fail('load-failed', String(e?.message ?? e)),
+      this.fail(
+        'load-failed',
+        String(e?.message ?? e),
+        e instanceof WidgetUrlError ? 'invalid-url' : 'load-failed',
+      ),
     );
 
     this.start();
@@ -257,10 +279,15 @@ class EmbeddedWidget implements EmbeddedWidgetHandle, HubMember, DriverHost {
     this.o.onStateChange?.(state);
   }
 
-  private fail(reason: 'denied' | 'load-failed' | 'timeout', message: string) {
+  private fail(
+    reason: EmbeddedWidgetErrorReason,
+    message: string,
+    code: EmbeddedWidgetErrorCode = reason,
+  ) {
     this.setState({
       status: 'error',
       reason,
+      code,
       message,
       capabilities: this.summaryCopy(),
     });
@@ -277,12 +304,21 @@ class EmbeddedWidget implements EmbeddedWidgetHandle, HubMember, DriverHost {
         allowInsecureLocalhost: this.o.allowInsecureLocalhost,
       });
       if (!allowed.has(this.url.origin)) {
-        throw new WidgetUrlError(
+        this.fail(
+          'load-failed',
           `Widget origin ${this.url.origin} is not in the allowed origins`,
+          'origin-not-allowed',
         );
+        return;
       }
     } catch (e) {
-      this.fail('load-failed', (e as Error).message);
+      this.fail(
+        'load-failed',
+        (e as Error).message,
+        e instanceof WidgetUrlError && e.code === 'same-origin'
+          ? 'same-origin'
+          : 'invalid-url',
+      );
       return;
     }
     const url = this.url;
@@ -362,7 +398,7 @@ class EmbeddedWidget implements EmbeddedWidgetHandle, HubMember, DriverHost {
         clearTimeout(loadTimer);
         if (++loads > 1) {
           this.stopCurrent();
-          this.fail('load-failed', 'The widget navigated away');
+          this.fail('load-failed', 'The widget navigated away', 'navigated');
           return;
         }
         if (this.state.status === 'loading') {
@@ -415,6 +451,7 @@ class EmbeddedWidget implements EmbeddedWidgetHandle, HubMember, DriverHost {
       WidgetApiFromWidgetAction.OpenModalWidget,
       (req) => void this.handleOpenModal(req),
     );
+    if (this.modalContext) this.registerModalActions(client, on);
 
     if (this.o.matrixRtc) {
       const hubReady = this.hubReady;
@@ -465,6 +502,10 @@ class EmbeddedWidget implements EmbeddedWidgetHandle, HubMember, DriverHost {
   }
 
   private stopCurrent() {
+    // A modal belongs to the running widget; a reloaded widget has none.
+    const modal = this.modal;
+    this.modal = undefined;
+    modal?.abort();
     this.abort.abort();
     this.abort = new AbortController();
     this.teardown
@@ -1117,7 +1158,12 @@ class EmbeddedWidget implements EmbeddedWidgetHandle, HubMember, DriverHost {
     if (!client) return;
     const error = (message: string) =>
       client.transport.reply(req, { error: { message } });
-    if ((this.o.modals ?? 'deny') === 'deny') {
+    const mode = this.o.modals ?? 'deny';
+    if (
+      mode === 'deny' ||
+      (mode === 'inline' && !this.o.onModalRequest) ||
+      this.modalContext
+    ) {
       return error('Modals are not available for embedded widgets');
     }
     const data = (req.data ?? {}) as { url?: unknown };
@@ -1133,6 +1179,9 @@ class EmbeddedWidget implements EmbeddedWidgetHandle, HubMember, DriverHost {
     ) {
       return error('Modal URL must have the origin of the embedded widget');
     }
+    if (mode === 'inline') {
+      return this.openInlineModal(req, client, modalUrl, error);
+    }
     try {
       const hub = await this.hubReady;
       await hub.openModal(this, req.data);
@@ -1140,6 +1189,128 @@ class EmbeddedWidget implements EmbeddedWidgetHandle, HubMember, DriverHost {
     } catch (e) {
       error(String((e as Error)?.message ?? 'Unable to open modal'));
     }
+  }
+
+  /**
+   * `inline` mode: the host shows the modal as a second mediated instance
+   * (see `inlineModal.ts`). Nothing is sent to the outer client.
+   */
+  private openInlineModal(
+    req: IWidgetApiRequest,
+    client: ClientWidgetApi,
+    modalUrl: URL,
+    error: (message: string) => void,
+  ) {
+    const onModalRequest = this.o.onModalRequest;
+    if (!onModalRequest) return;
+    if (this.modal) return error('Another modal is already open');
+    const spec = parseModalSpec(req.data, modalUrl.toString());
+    const modal: InlineModal = new InlineModal(spec, {
+      widgetId: deriveModalWidgetId(this.widgetId),
+      parentWidgetId: this.widgetId,
+      origin: modalUrl.origin,
+      displayUrl: displayUrl(modalUrl),
+      createInstance: (container, context, onStateChange) =>
+        this.createModalInstance(container, spec.url, context, onStateChange),
+      deliverClose: (data) => {
+        if (this.client === client) this.deliverModalClose(data);
+      },
+      onClosed: () => {
+        if (this.modal === modal) this.modal = undefined;
+      },
+    });
+    this.modal = modal;
+    client.transport.reply(req, {});
+    try {
+      onModalRequest(modal as EmbeddedModalRequest);
+    } catch (e) {
+      this.o.logger?.warn('onModalRequest failed', String(e));
+      modal.cancel();
+    }
+  }
+
+  /**
+   * The modal widget: same origin, parameters, namespace and denials as this
+   * widget, but its allow-list is what this widget was granted (so it
+   * never needs the outer client's dialog), no capability rounds upward,
+   * no modals, no OpenID, no calls.
+   */
+  private createModalInstance(
+    container: HTMLElement,
+    url: string,
+    context: ModalContext,
+    onStateChange?: (state: EmbeddedWidgetState) => void,
+  ): ModalInstance {
+    const o = this.o;
+    const instance = new EmbeddedWidget(
+      {
+        container,
+        widgetUrl: url,
+        widgetId: o.widgetId,
+        outerApi: o.outerApi,
+        allowedOrigins: this.url ? [this.url.origin] : [],
+        params: o.params,
+        allowedCapabilities: [...this.summary.granted],
+        deniedCapabilities: o.deniedCapabilities,
+        urlParameters: o.urlParameters,
+        name: o.name,
+        title: o.title ?? o.name,
+        data: o.data,
+        updateState: o.updateState,
+        modals: 'deny',
+        openId: 'deny',
+        sandboxSameOrigin: o.sandboxSameOrigin,
+        sandboxExtras: o.sandboxExtras,
+        eventNamespace: o.eventNamespace,
+        loadTimeoutMs: o.loadTimeoutMs,
+        echoFallbackMs: o.echoFallbackMs,
+        rateLimit: o.rateLimit,
+        maxQueuedSends: o.maxQueuedSends,
+        maxTimelineReadLimit: o.maxTimelineReadLimit,
+        allowInsecureLocalhost: o.allowInsecureLocalhost,
+        maxCapabilityRequests: 0,
+        onStateChange,
+        onEventSent: o.onEventSent,
+        logger: o.logger,
+      },
+      context,
+    );
+    return {
+      clickButton: (id) =>
+        instance.client
+          ?.notifyModalWidgetButtonClicked(id)
+          .catch(() => undefined),
+      destroy: () => instance.destroy(),
+    };
+  }
+
+  /** This instance is an inline modal: its modal actions and `widget_config`. */
+  private registerModalActions(
+    client: ClientWidgetApi,
+    on: (action: string, handler: (req: IWidgetApiRequest) => void) => void,
+  ) {
+    const modal = this.modalContext!;
+    on(WidgetApiFromWidgetAction.CloseModalWidget, (req) => {
+      client.transport.reply(req, {});
+      modal.closeFromWidget(req.data);
+    });
+    on(WidgetApiFromWidgetAction.SetModalButtonEnabled, (req) => {
+      const d = (req.data ?? {}) as { button?: unknown; enabled?: unknown };
+      const ok =
+        typeof d.button === 'string' &&
+        typeof d.enabled === 'boolean' &&
+        modal.setButtonEnabled(d.button, d.enabled);
+      client.transport.reply(
+        req,
+        ok ? {} : { error: { message: 'Invalid button' } },
+      );
+    });
+    // Like the outer client: the modal's open request, once it is ready.
+    client.on('ready', () => {
+      client
+        .sendWidgetConfig(modal.widgetConfig as never)
+        .catch(() => undefined);
+    });
   }
 
   // ---------------------------------------------------------- downward I/O

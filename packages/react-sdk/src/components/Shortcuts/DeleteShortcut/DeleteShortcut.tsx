@@ -16,18 +16,22 @@
 
 import { useCallback } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
+import { useEmbeddedWidgetHost } from '../../../embeddedWidget/EmbeddedWidgetProvider';
 import { useWhiteboardSlideInstance } from '../../../state';
 import { HOTKEY_SCOPE_WHITEBOARD } from '../../WhiteboardHotkeysProvider';
 
 export function DeleteShortcut() {
   const slideInstance = useWhiteboardSlideInstance();
+  const { confirmRemoval } = useEmbeddedWidgetHost();
 
   const handleDelete = useCallback(() => {
     const activeElementIds = slideInstance.getActiveElementIds();
     if (activeElementIds.length > 0) {
-      slideInstance.removeElements(activeElementIds);
+      confirmRemoval(activeElementIds, () =>
+        slideInstance.removeElements(activeElementIds),
+      );
     }
-  }, [slideInstance]);
+  }, [slideInstance, confirmRemoval]);
 
   useHotkeys(
     'delete, backspace',

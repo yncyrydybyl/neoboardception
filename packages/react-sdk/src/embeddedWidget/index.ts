@@ -19,8 +19,10 @@ export {
   type CreateEmbeddedWidgetElementOptions,
 } from './createEmbeddedWidgetElement';
 export {
+  getEmbeddedWidgetSupport,
   groupCapabilities,
   type CapabilityGroups,
+  type EmbeddedWidgetSupport,
 } from './describeCapabilities';
 export {
   defaultEmbeddedWidgetSize,
@@ -38,7 +40,12 @@ export {
   sharedChangeDurationMs,
 } from './EmbeddedWidgetDisplay';
 export {
+  EmbeddedWidgetModalDialog,
+  type EmbeddedWidgetModalDialogProps,
+} from './EmbeddedWidgetModalDialog';
+export {
   EmbeddedWidgetPlaceholder,
+  getDisplayUrl as getEmbeddedWidgetDisplayUrl,
   type EmbeddedWidgetPlaceholderReason,
 } from './EmbeddedWidgetPlaceholder';
 export {
@@ -58,9 +65,15 @@ export {
 export { EmbedWidgetButton } from './EmbedWidgetButton';
 export { EmbedWidgetDialog } from './EmbedWidgetDialog';
 export { embeddedWidgetToPdfShape } from './pdf';
+export { isPermanentEmbeddedWidgetErrorCode } from './renderer';
 export type {
   EmbeddedWidgetActivity,
+  EmbeddedWidgetCapabilityLimits,
   EmbeddedWidgetConsentRequest,
+  EmbeddedWidgetErrorCode,
+  EmbeddedWidgetModal,
+  EmbeddedWidgetModalButton,
+  EmbeddedWidgetModalStatus,
   EmbeddedWidgetMountHandle,
   EmbeddedWidgetPreapproval,
   EmbeddedWidgetRenderer,

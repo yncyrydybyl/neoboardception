@@ -47,6 +47,14 @@
  *   the hard deny-list.
  * - `media_permissions: ["camera", "microphone", …]` delegates these
  *   permission-policy features to the widget's iframe.
+ *
+ * Extension for modals (`open_modal`):
+ *
+ * - `modals: "deny" | "forward" | "inline"`: refuse them, forward them to
+ *   the outer client (a top-level modal under the host's identity, which
+ *   needs its own lifecycle rule for the modal URL), or show them in the
+ *   host (a second mediated instance, limited to the widget's grants). Not
+ *   set: the host's default (deny).
  */
 
 import { applyCapabilityPolicy, isHardDenied } from './capabilities';
@@ -63,6 +71,7 @@ import {
   isNestedNamespaceType,
   validateEventNamespace,
 } from './namespace';
+import type { ModalMode } from './types';
 
 /** The event type of an event/to-device capability is in the reserved namespace. */
 function isNestedNamespaceCapability(cap: string): boolean {
@@ -81,6 +90,9 @@ export {
   validateEventNamespace,
 } from './namespace';
 export type { EventNamespaceMap } from './namespace';
+export type { ModalMode } from './types';
+
+const MODAL_MODES: readonly ModalMode[] = ['deny', 'forward', 'inline'];
 
 /** What happens to widget URLs that no rule matches. */
 export type UnlistedMode =
@@ -118,6 +130,8 @@ export interface EmbeddedWidgetPolicyRule {
    * `namespace.ts`. `capabilitiesApproved` is written in the rewritten form.
    */
   readonly eventNamespace?: EventNamespaceMap;
+  /** Modals of the widget (`modals`); `undefined` = the host's default. */
+  readonly modals?: ModalMode;
 }
 
 export interface EmbeddedWidgetPolicy {
@@ -152,6 +166,7 @@ const RULE_KEYS = new Set([
   'matrixrtc',
   'media_permissions',
   'event_namespace',
+  'modals',
 ]);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -280,6 +295,15 @@ function parseRule(
     );
   }
 
+  let modals: ModalMode | undefined;
+  if (value.modals !== undefined) {
+    if (MODAL_MODES.includes(value.modals as ModalMode)) {
+      modals = value.modals as ModalMode;
+    } else {
+      errors.push(`${where}.modals: must be "deny", "forward" or "inline"`);
+    }
+  }
+
   let name: string | undefined;
   if (value.name !== undefined) {
     if (
@@ -371,6 +395,7 @@ function parseRule(
     matrixRtc,
     mediaPermissions: Object.freeze(mediaPermissions),
     ...(eventNamespace ? { eventNamespace } : {}),
+    ...(modals ? { modals } : {}),
   };
 }
 
@@ -509,6 +534,8 @@ export type EmbeddedWidgetPolicyDecision =
       mediaPermissions: readonly MediaPermission[];
       /** Event type namespace for the mediator (`eventNamespace`). */
       eventNamespace?: EventNamespaceMap;
+      /** Modal mode of the rule; `undefined` = the host's default. */
+      modals?: ModalMode;
     };
 
 export interface DecideOptions {
@@ -563,6 +590,7 @@ export function decideEmbeddedWidget(
     matrixRtc: rule.matrixRtc,
     mediaPermissions: rule.mediaPermissions,
     ...(rule.eventNamespace ? { eventNamespace: rule.eventNamespace } : {}),
+    ...(rule.modals ? { modals: rule.modals } : {}),
   };
 }
 

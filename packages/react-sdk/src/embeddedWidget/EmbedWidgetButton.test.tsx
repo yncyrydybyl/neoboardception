@@ -130,12 +130,28 @@ describe('<EmbedWidgetButton />', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Embed widget' }));
+    const submit = screen.getByRole('button', { name: 'Embed' });
+    expect(submit).toBeDisabled();
+    expect(
+      screen.getByText(
+        'Only widget addresses approved for this board can be embedded.',
+      ),
+    ).toBeInTheDocument();
+
     fireEvent.change(screen.getByRole('textbox', { name: /Widget address/ }), {
       target: { value: url },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Embed' }));
 
+    // Refused while typing: helper text, "Embed" disabled, Enter ignored.
     expect(screen.getByText(message)).toBeInTheDocument();
+    expect(submit).toBeDisabled();
+    fireEvent.submit(screen.getByRole('textbox', { name: /Widget address/ }));
     expect(slide.getElementIds()).toHaveLength(1);
+
+    fireEvent.change(screen.getByRole('textbox', { name: /Widget address/ }), {
+      target: { value: 'https://widgets.example.org/poll/' },
+    });
+    expect(submit).toBeEnabled();
+    expect(screen.queryByText(message)).not.toBeInTheDocument();
   });
 });

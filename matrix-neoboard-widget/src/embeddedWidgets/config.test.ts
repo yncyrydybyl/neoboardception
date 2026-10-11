@@ -64,6 +64,54 @@ describe('loadEmbeddedWidgetConfig', () => {
     expect(config.isUrlAllowed(url(`${POLL}/`))).toBe(false);
   });
 
+  describe("the board's own origin", () => {
+    const BOARD_ORIGIN = 'https://board.example.org';
+
+    it('is dropped from the origin list with a warning', () => {
+      const config = loadEmbeddedWidgetConfig(
+        (name) =>
+          ({
+            REACT_APP_EMBEDDED_WIDGET_ALLOWED_ORIGINS: `${POLL},${BOARD_ORIGIN}`,
+          })[name] ?? '',
+        { hostOrigin: `${BOARD_ORIGIN}/index.html` },
+      );
+      expect(config.allowedOrigins).toEqual([POLL]);
+      expect(config.isUrlAllowed(url(`${BOARD_ORIGIN}/poll/`))).toBe(false);
+      expect(
+        config.resolveMountPolicy(`${BOARD_ORIGIN}/poll/`),
+      ).toBeUndefined();
+      expect(config.warnings).toEqual([
+        expect.stringContaining(
+          `${BOARD_ORIGIN} is the board's own origin; widgets cannot be embedded from it; ignored`,
+        ),
+      ]);
+    });
+
+    it('is dropped from the policy with a warning', () => {
+      const config = loadEmbeddedWidgetConfig(
+        (name) =>
+          ({
+            REACT_APP_EMBEDDED_WIDGET_POLICY: JSON.stringify({
+              version: 1,
+              widget_permissions: {
+                [`${POLL}/`]: { capabilities_approved: [VOTE] },
+                [`${BOARD_ORIGIN}/*`]: { capabilities_approved: [VOTE] },
+              },
+            }),
+          })[name] ?? '',
+        { hostOrigin: BOARD_ORIGIN },
+      );
+      expect(config.source).toBe('policy');
+      expect(config.allowedOrigins).toEqual([POLL]);
+      expect(config.isUrlAllowed(url(`${BOARD_ORIGIN}/x`))).toBe(false);
+      expect(config.warnings).toEqual([
+        expect.stringContaining(
+          `REACT_APP_EMBEDDED_WIDGET_POLICY: ${BOARD_ORIGIN} is the board's own origin`,
+        ),
+      ]);
+    });
+  });
+
   describe('without a policy (compatibility)', () => {
     const config = load({
       REACT_APP_EMBEDDED_WIDGET_ALLOWED_ORIGINS: `${POLL}, http://x.example.org,${POLL}`,
@@ -115,6 +163,25 @@ describe('loadEmbeddedWidgetConfig', () => {
         identityApproved: true,
         name: undefined,
       });
+    });
+
+    it('passes the modal mode of a rule on', () => {
+      const config = load({
+        REACT_APP_EMBEDDED_WIDGET_POLICY: JSON.stringify({
+          widget_permissions: {
+            [`${POLL}/`]: {
+              ...policy.widget_permissions[`${POLL}/`],
+              modals: 'inline',
+            },
+          },
+        }),
+      });
+      expect(config.resolveMountPolicy(`${POLL}/`)?.modals).toBe('inline');
+      expect(
+        load({
+          REACT_APP_EMBEDDED_WIDGET_POLICY: JSON.stringify(policy),
+        }).resolveMountPolicy(`${POLL}/`),
+      ).not.toHaveProperty('modals');
     });
 
     it('denies unlisted URLs, also on listed origins', () => {

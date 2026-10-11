@@ -71,7 +71,7 @@ gelten **zusammen**:
 | Maßnahme                                           | Umsetzung                                                                                                                                                                                                                                                                                        |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Origin-Allow-List aus der Deployment-Konfiguration | NeoBoards Policy (`REACT_APP_EMBEDDED_WIDGET_POLICY`, Abschnitt 9) oder `REACT_APP_EMBEDDED_WIDGET_ALLOWED_ORIGINS`. Gilt für Einfügen und Mounten im Board-Element und als `allowedOrigins` im Vermittler. Nie aus Raum-State, Widget-Parametern oder Board-Inhalt.                             |
-| Passende Modulregeln                               | Die Poll-Capabilities stehen in NeoBoards Regel **nur**, wenn NeoBoard die Allow-List erzwingt. Modal-Regeln nennen nur die Poll-Origin und exakte Pfade.                                                                                                                                        |
+| Passende Modulregeln                               | Die Poll-Capabilities stehen in NeoBoards Regel **nur**, wenn NeoBoard die Allow-List erzwingt. Modal-Regeln (nur bei `modals: "forward"`) nennen nur die Poll-Origin und exakte Pfade.                                                                                                          |
 | CSP `frame-src` auf NeoBoards Host                 | Das widget-server-Image setzt `frame-src 'self' $CSP_FRAME_SRC`. `CSP_FRAME_SRC` muss genau die Allow-List enthalten. Ohne diese Variable blockiert der Browser jedes eingebettete Widget. Mit `*` oder `https:` wäre die Liste wirkungslos.                                                     |
 | Widget-Bearbeitung nur durch Admins                | Power Level für `im.vector.modular.widgets` (und `io.element.widgets.layout`) auf Admin setzen. Sonst kann jeder mit diesem Recht ein Widget mit NeoBoards URL anlegen, und es ist vorab genehmigt. Räume, die mit nicht vertrauenswürdigen Servern föderieren, sollten Einbettung nicht nutzen. |
 | Eigene NeoBoard-Origin                             | Die Regel `https://neoboard.example.org/*` gilt für jeden Pfad dieser Origin. Dort darf nur NeoBoard liegen, kein anderer Inhalt und keine Nutzer-Uploads.                                                                                                                                       |
@@ -133,7 +133,7 @@ capabilities_approved(NeoBoard-URL) = NeoBoard-eigene Capabilities ∪ POLL_CAPA
 | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
 | NeoBoard, `REACT_APP_RTC=matrixrtc` (Default) | `matrix-neoboard-widget/src/widgetCapabilities.ts` (Basis plus MatrixRTC-Zweig) plus `io.element.requires_client`, das das Toolkit implizit anfordert | 28                             |
 | NeoBoard, `REACT_APP_RTC=webrtc`              | Basis plus WebRTC-Zweig plus `io.element.requires_client`                                                                                             | 21                             |
-| Poll                                          | `POLL_CAPABILITIES` in `packages/widget-mediation/src/capabilities.ts` (= Agent B, §7.1)                                                              | 15                             |
+| Poll                                          | `POLL_CAPABILITIES` in `packages/widget-mediation/src/capabilities.ts` (§7.1)                                                                         | 15                             |
 | davon neu gegenüber NeoBoard ("Poll-Delta")   | 10 × `net.nordeck.poll*` exakt plus `…receive.state_event:m.room.power_levels` ohne `#`                                                               | 11                             |
 | Regel NeoBoard (matrixrtc)                    | Vereinigung                                                                                                                                           | 39                             |
 
@@ -158,6 +158,14 @@ Generator sie weg. Dann fragt Element genau diese eine Capability per Dialog ab.
 Default der Beispiele: enthalten, damit wirklich kein Dialog erscheint.
 
 ### 4.2 Modal-Regeln für Poll
+
+**Mit `modals: "inline"` (Policy-Feld, Default des Generators) entfallen diese
+Regeln.** NeoBoard zeigt das Modal dann selbst in einem Board-Dialog, als
+zweite vermittelte Instanz der Modal-URL (Widget-ID `modal_<ID des
+eingebetteten Widgets>`). Sie bekommt höchstens, was das eingebettete Widget
+schon hat, und fragt nichts bei Element an. Element sieht weder das Modal
+noch die Poll-Origin, es gibt keinen weiteren Dialog (Abschnitt 9.1). Der Rest
+dieses Abschnitts gilt nur für den Rückfall `modals: "forward"`.
 
 Poll öffnet zum Anlegen und Bearbeiten von Polls und Gruppen ein Element-Modal
 (`open_modal`). Element lädt die Modal-URL **top-level**. Das iframe ist nicht in
@@ -187,9 +195,9 @@ Variante B: `https://poll.example.org/create-poll` und
 - Kein `preload_approved` und kein `identity_approved` (bei Modals ohne Wirkung
   bzw. nicht gewollt).
 - Die Modal-Regeln braucht es nur, wenn der Vermittler `open_modal` weitergibt
-  (`modals: 'forward'`). Default des Pakets ist `'deny'`. Dann kann Poll aber
-  keine Polls anlegen. Die Alternative ist, Modals in NeoBoard zu rendern. Das
-  ist noch nicht umgesetzt. Mit `--no-modals` lässt der Generator die Regeln weg.
+  (`modals: "forward"`, Generator `--modals forward`). Default des Pakets ist
+  `"deny"`; dann kann Poll keine Polls anlegen. Der Generator schreibt
+  standardmäßig `modals: "inline"` und keine Modal-Regeln.
 - Element erlaubt nur ein Modal zur Zeit. Das Ergebnis (`close_modal`) geht an
   NeoBoard, der Vermittler reicht es an das öffnende Widget weiter.
 
@@ -316,7 +324,7 @@ Folgen:
 | Inneres Widget fragt eine Capability außerhalb der Vermittler-Allow-List an       | Kein Element-Dialog: Der Vermittler blockiert sie (`blockedByPolicy`).                                                                                                                                                                                       |
 | Lokale Zustimmung in NeoBoard                                                     | Nach Ebene-2-Policy (Abschnitt 9): bei `preload_approved` kein Panel, nur ein Hinweis in der Statusleiste ("Von deiner Administration freigegeben", mit Name und Origin); sonst NeoBoards Panel, das das innere Widget benennt.                              |
 | "Load widget"                                                                     | Platzhalter, bis ein Nutzer das Widget aktiviert. Bleibt auch mit `preload_approved` eine Nutzeraktion (Abschnitt 9.1).                                                                                                                                      |
-| Poll-Modal                                                                        | Das Modal selbst. Element zeigt Name und Buttons; ohne Modal-Regel zusätzlich einen Capability-Dialog.                                                                                                                                                       |
+| Poll-Modal                                                                        | `inline`: NeoBoards Dialog mit Name, Herkunft und Buttons, kein Element-Dialog. `forward`: Elements Modal mit Name und Buttons; ohne Modal-Regel zusätzlich ein Capability-Dialog.                                                                           |
 
 ## 8. NeoBoard-Einstellungen
 
@@ -330,7 +338,8 @@ Folgen:
   widget-server-Image eingespielt (`window.__ENVIRONMENT__`); beim Build
   gesetzte Werte (`import.meta.env`) gelten als Fallback.
 - `REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS`: Origins, deren Widgets Modals
-  öffnen dürfen (nötig zum Anlegen von Polls).
+  in Element öffnen dürfen (`forward`), sofern ihre Policy-Regel kein
+  `modals` setzt. Mit Policy besser `modals` je Regel (Abschnitt 9.1).
 - `REACT_APP_EMBEDDED_WIDGET_INITIAL_UNION`: optional `true` (Abschnitt 9.3).
 - `REACT_APP_EMBEDDED_WIDGET_ALLOWED_CAPABILITIES`: optional, exakte
   Capabilities zusätzlich zur Poll-Allow-List. Ohne Policy bekommt jedes
@@ -372,6 +381,7 @@ nur ein Format lernen. Sie liegt nie im Raum-State und nie im Board-Inhalt.
       "name": "Poll",
       "preload_approved": false,
       "identity_approved": false,
+      "modals": "inline",
       "capabilities_approved": ["…15 exakte Poll-Strings…"]
     }
   }
@@ -405,14 +415,15 @@ eigene Einstiegspunkt hält den Rest des Pakets aus dem Haupt-Bundle; der
 Vermittler bleibt ein Lazy-Chunk. Die Verdrahtung liegt in
 `matrix-neoboard-widget/src/embeddedWidgets/config.ts`.
 
-| Policy-Feld                         | Wirkung in NeoBoard                                                                                                                                                                                                                                                    |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Schlüssel (URL, `*` nur als Suffix) | Matching gegen Origin + Pfad der Widget-URL im Board, **ohne Query und Hash**, nach URL-Normalisierung. Die Origins aller Schlüssel ergeben die Origin-Allow-List (`isUrlAllowed`, `allowedOrigins`).                                                                  |
-| `capabilities_approved`             | `allowedCapabilities` beim Mount, abzüglich Hard-Deny-Liste des Vermittlers und NeoBoards eigener Typen (`net.nordeck.whiteboard*`). Nicht gelistete Capabilities: `blockedByPolicy`.                                                                                  |
-| `preload_approved`                  | Kein lokales Consent-Panel (`confirmCapabilities` antwortet `true`). Stattdessen ein nicht blockierender Hinweis in der Statusleiste: "Von deiner Administration freigegeben", Tooltip und Live-Region nennen Name und Origin. Element kann trotzdem fragen (Ebene 1). |
-| `identity_approved`                 | OpenID-Anfragen des Widgets gehen an Element (`openId: 'forward'` im Vermittler). Default aus: dann blockiert. Element fragt unter NeoBoards Identität bzw. merkt sich die Entscheidung für NeoBoard.                                                                  |
-| nicht gelistete Widget-URL          | `unlisted: "deny"` (Default): kein Mount, Platzhalter "blockiert". `unlisted: "consent"`: Mount für erlaubte Origins mit der Standard-Allow-List (Poll) und lokalem Consent-Panel; die Origins aus `REACT_APP_EMBEDDED_WIDGET_ALLOWED_ORIGINS` zählen dann mit.        |
-| `name`                              | Name für den Hinweis und für die Meldungen des Vermittlers. Vom Betreiber, daher vertrauenswürdiger als der Titel im Board.                                                                                                                                            |
+| Policy-Feld                         | Wirkung in NeoBoard                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Schlüssel (URL, `*` nur als Suffix) | Matching gegen Origin + Pfad der Widget-URL im Board, **ohne Query und Hash**, nach URL-Normalisierung. Die Origins aller Schlüssel ergeben die Origin-Allow-List (`isUrlAllowed`, `allowedOrigins`).                                                                                                                                                                                    |
+| `capabilities_approved`             | `allowedCapabilities` beim Mount, abzüglich Hard-Deny-Liste des Vermittlers und NeoBoards eigener Typen (`net.nordeck.whiteboard*`). Nicht gelistete Capabilities: `blockedByPolicy`.                                                                                                                                                                                                    |
+| `preload_approved`                  | Kein lokales Consent-Panel (`confirmCapabilities` antwortet `true`). Stattdessen ein nicht blockierender Hinweis in der Statusleiste: "Von deiner Administration freigegeben", Tooltip und Live-Region nennen Name und Origin. Element kann trotzdem fragen (Ebene 1).                                                                                                                   |
+| `identity_approved`                 | OpenID-Anfragen des Widgets gehen an Element (`openId: 'forward'` im Vermittler). Default aus: dann blockiert. Element fragt unter NeoBoards Identität bzw. merkt sich die Entscheidung für NeoBoard.                                                                                                                                                                                    |
+| nicht gelistete Widget-URL          | `unlisted: "deny"` (Default): kein Mount, Platzhalter "blockiert". `unlisted: "consent"`: Mount für erlaubte Origins mit der Standard-Allow-List (Poll) und lokalem Consent-Panel; die Origins aus `REACT_APP_EMBEDDED_WIDGET_ALLOWED_ORIGINS` zählen dann mit.                                                                                                                          |
+| `name`                              | Name für den Hinweis und für die Meldungen des Vermittlers. Vom Betreiber, daher vertrauenswürdiger als der Titel im Board.                                                                                                                                                                                                                                                              |
+| `modals`                            | Erweiterung: `"deny"`, `"forward"` oder `"inline"` (`open_modal` des Widgets). `inline`: NeoBoard zeigt das Modal im Board (zweite Instanz, nur die Grants des Widgets, keine Anfrage an Element). `forward`: Element-Modal, braucht Modal-Regeln (4.2). Nicht gesetzt: `forward` für Origins in `REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS`, sonst `deny`. Andere Werte: Policy ungültig. |
 
 **Bewusste Abweichungen vom Modul:**
 
@@ -562,7 +573,9 @@ node neoboardception-docs/examples/generate-lifecycle-config.mjs --print \
   beide Beispiele gültig sind und dieselbe Wirkung haben.
 - `--check` gehört in die CI, damit Änderungen an NeoBoards oder Polls
   Capability-Liste nicht unbemerkt an den Regeln vorbeilaufen.
-- Optionen: `--no-modals`, `--omit <cap,…>` (Abschnitt 4.1), `--preapprove`
+- Optionen: `--modals inline|forward|deny` (Default `inline`; `forward`
+  schreibt die Modal-Regeln aus 4.2 und `REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS`;
+  `--no-modals` = `deny`), `--omit <cap,…>` (Abschnitt 4.1), `--preapprove`
   (`preload_approved` für Poll in NeoBoards Policy), `--initial-union`
   (Schalter in `neoboard.env.example` aktiv statt auskommentiert).
 
@@ -586,7 +599,8 @@ Poll auf eigener Origin. Testkonten, frisches Browserprofil
        gegengeprüft über die Client-Server-API.
 5. [ ] Poll anlegen (Modal `/create-poll`) und Gruppe anlegen
        (`/admin/create-group`): Das Modal öffnet ohne Capability-Dialog. Das
-       Ergebnis landet im Raum.
+       Ergebnis landet im Raum. Bei `inline` öffnet es als NeoBoard-Dialog,
+       Element zeigt gar nichts.
 6. [ ] Reload: wieder kein Dialog. `localStorage` `widget_<NeoBoard-ID>_approved_caps`
        wurde nicht durch eine Teilliste überschrieben.
 7. [ ] Negativtest Element: Eine Capability aus der Regel entfernen (z. B.
@@ -605,8 +619,10 @@ Poll auf eigener Origin. Testkonten, frisches Browserprofil
 10. [ ] Negativtest URL-Muster: Eine exakte Regel `https://neoboard.example.org/`
         statt `/*` führt bei Variante A zu Dialogen. Damit ist Abschnitt 5.1
         bestätigt.
-11. [ ] Modal-Regel eng: Ein Modal auf einem anderen Poll-Pfad oder einer
-        anderen Origin bekommt einen Dialog, keine stille Genehmigung.
+11. [ ] Modal-Regel eng (nur `forward`): Ein Modal auf einem anderen
+        Poll-Pfad oder einer anderen Origin bekommt einen Dialog, keine stille
+        Genehmigung. Bei `inline`: ein Modal einer anderen Origin wird
+        abgelehnt.
 12. [ ] Nachforderung ohne neue Capabilities (Poll "Retry"): kein Dialog. Die
         Grants im Vermittler bleiben vollständig (doppeltes `notify_capabilities`,
         Abschnitt 6).

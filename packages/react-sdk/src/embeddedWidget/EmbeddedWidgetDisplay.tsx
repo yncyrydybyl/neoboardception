@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
-import { Box, keyframes } from '@mui/material';
+import ExitToAppIcon from '@mui/icons-material/ExitToApp';
+import { Box, Button, keyframes } from '@mui/material';
+import { visuallyHidden } from '@mui/utils';
 import loglevel from 'loglevel';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ElementFrameOverlay } from '../components/elements/ElementFrameOverlay';
 import {
   ElementContextMenu,
@@ -24,8 +27,10 @@ import {
   SelectableElement,
   WithExtendedSelectionProps,
 } from '../components/Whiteboard';
+import { getEmbeddedWidgetSupport } from './describeCapabilities';
 import { EmbeddedWidgetElement } from './element';
 import { EmbeddedWidgetConsent } from './EmbeddedWidgetConsent';
+import { EmbeddedWidgetModalDialog } from './EmbeddedWidgetModalDialog';
 import {
   EmbeddedWidgetPlaceholder,
   EmbeddedWidgetPlaceholderReason,
@@ -39,9 +44,11 @@ import {
   EmbeddedWidgetStatusBar,
 } from './EmbeddedWidgetStatusBar';
 import {
+  EmbeddedWidgetModal,
   EmbeddedWidgetMountHandle,
   EmbeddedWidgetRuntimeStatus,
   EmbeddedWidgetViewState,
+  isPermanentEmbeddedWidgetErrorCode,
 } from './renderer';
 import { checkEmbeddedWidgetUrl } from './urlPolicy';
 import { useEmbeddedWidgetViewport } from './viewport';
@@ -85,8 +92,13 @@ function getOrigin(widgetUrl: string): string {
  * (activated by the user or host, within the live-widget cap), the renderer
  * mounts the widget into an empty container. The container only receives
  * pointer events while the user interacts with the widget (double click to
- * enter; pointer down outside of the element or Escape to leave) and is
- * hidden during pan/zoom gestures and while off-viewport.
+ * enter; pointer down outside of the element, Escape on the board or the
+ * "Leave widget" button to leave) and is hidden during pan/zoom gestures and
+ * while off-viewport.
+ *
+ * If the widget URL in the board document changes while the widget runs
+ * (e.g. edited by another user), the element is deactivated: the new URL
+ * only runs after a new activation (and consent) by this user.
  */
 function EmbeddedWidgetDisplay({
   widgetUrl,
@@ -114,12 +126,14 @@ function EmbeddedWidgetDisplay({
     interactingElementId,
     setInteractingElementId,
   } = useEmbeddedWidgetHost();
+  const { t } = useTranslation('neoboard');
   const setPinnedRef = useRef(setPinned);
   setPinnedRef.current = setPinned;
   const isPreview = useIsEmbeddedWidgetPreview();
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<EmbeddedWidgetRuntimeStatus>();
+  const [modal, setModal] = useState<EmbeddedWidgetModal>();
   const [sharedChange, setSharedChange] = useState(false);
   const sharedChangeTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -128,7 +142,19 @@ function EmbeddedWidgetDisplay({
     [widgetUrl, isUrlAllowed],
   );
   const canActivate = !isPreview && renderer !== undefined && urlCheck.allowed;
-  const isLive = canActivate && liveElementIds.includes(elementId);
+  const listedLive = !isPreview && liveElementIds.includes(elementId);
+  // The URL this element was activated with. A different URL in the
+  // document (also a detour over a URL that is not allowed) never runs on
+  // the old activation (or the old consent).
+  const [liveUrl, setLiveUrl] = useState<string>();
+  if (!listedLive && liveUrl !== undefined) {
+    setLiveUrl(undefined);
+  } else if (listedLive && canActivate && liveUrl === undefined) {
+    setLiveUrl(widgetUrl);
+  }
+  const urlChangedWhileLive =
+    listedLive && liveUrl !== undefined && liveUrl !== widgetUrl;
+  const isLive = canActivate && listedLive && !urlChangedWhileLive;
   const interactive = isLive && interactingElementId === elementId;
 
   const { visible, gesturing } = useEmbeddedWidgetViewport({
@@ -177,6 +203,30 @@ function EmbeddedWidgetDisplay({
     return () => deactivate(elementId);
   }, [isPreview, deactivate, elementId]);
 
+  // The widget URL changed while the widget ran: stop it and require a new
+  // activation (the user consented to the old URL, not to this one).
+  useEffect(() => {
+    if (urlChangedWhileLive) {
+      loglevel.info(
+        'Embedded widget URL changed while running; deactivated',
+        elementId,
+      );
+      deactivate(elementId);
+    }
+  }, [urlChangedWhileLive, deactivate, elementId]);
+
+  // Technical details of errors go to the console; the board shows a
+  // localised text.
+  const errorLog =
+    status?.state === 'error'
+      ? `${status.code ?? status.reason ?? 'error'}: ${status.message ?? ''}`
+      : undefined;
+  useEffect(() => {
+    if (errorLog !== undefined) {
+      loglevel.warn('Embedded widget error', elementId, errorLog);
+    }
+  }, [errorLog, elementId]);
+
   useEffect(() => {
     if (!isLive || !renderer || !container) {
       return;
@@ -213,6 +263,11 @@ function EmbeddedWidgetDisplay({
             setPinnedRef.current(elementId, keepAlive);
           }
         },
+        onModalChange: (newModal) => {
+          if (mounted) {
+            setModal(newModal);
+          }
+        },
         onActivity: (activity) => {
           if (mounted && activity.kind === 'shared-change') {
             clearTimeout(sharedChangeTimer.current);
@@ -242,6 +297,7 @@ function EmbeddedWidgetDisplay({
         loglevel.error('Embedded widget renderer failed to unmount', error);
       }
       setStatus(undefined);
+      setModal(undefined);
     };
   }, [
     isLive,
@@ -294,6 +350,7 @@ function EmbeddedWidgetDisplay({
   }, [interactive, setInteractingElementId]);
 
   const handleActivate = () => activate(elementId);
+  const handleLeave = () => setInteractingElementId(undefined);
   const handleDoubleClick = () => {
     if (isLive) {
       setInteractingElementId(elementId);
@@ -312,7 +369,10 @@ function EmbeddedWidgetDisplay({
   } else if (!isLive) {
     placeholderReason = 'inactive';
   } else if (status?.state === 'error') {
-    placeholderReason = status.reason === 'denied' ? 'denied' : 'error';
+    placeholderReason =
+      status.reason === 'denied' || status.code === 'denied'
+        ? 'denied'
+        : 'error';
   } else if (status?.state === 'consent') {
     consentPanel = (
       <EmbeddedWidgetConsent
@@ -351,6 +411,18 @@ function EmbeddedWidgetDisplay({
   const preapproved =
     status?.state === 'ready' || status?.state === 'negotiating'
       ? status.preapproved
+      : undefined;
+  const support = useMemo(
+    () =>
+      getEmbeddedWidgetSupport(
+        status?.state === 'ready' ? status.limits : undefined,
+      ),
+    [status],
+  );
+  const retry =
+    status?.state === 'error' &&
+    !isPermanentEmbeddedWidgetErrorCode(status.code)
+      ? status.retry
       : undefined;
 
   const renderedChild = (
@@ -396,6 +468,8 @@ function EmbeddedWidgetDisplay({
             state={liveState}
             sharedChange={showSharedChange}
             preapproved={preapproved}
+            support={support}
+            onLeave={handleLeave}
           />
         )}
         <div
@@ -431,14 +505,51 @@ function EmbeddedWidgetDisplay({
               }}
             />
           )}
+          {interactive && (
+            // Keyboard users tabbing forward out of the widget land here
+            // (key presses inside the widget never reach the board).
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<ExitToAppIcon aria-hidden />}
+              onPointerDown={(event) => event.stopPropagation()}
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleLeave();
+              }}
+              data-testid={`element-${elementId}-embedded-widget-leave-after`}
+              sx={{
+                position: 'absolute',
+                right: 8,
+                bottom: 8,
+                '&:not(:focus-visible)': visuallyHidden,
+              }}
+            >
+              {t('embeddedWidget.leave', 'Leave widget')}
+            </Button>
+          )}
           {consentPanel}
+          {isLive && modal && (
+            <EmbeddedWidgetModalDialog
+              elementId={elementId}
+              widgetName={displayName}
+              modal={modal}
+            />
+          )}
           {placeholderReason !== undefined && (
             <EmbeddedWidgetPlaceholder
               elementId={elementId}
               widgetUrl={widgetUrl}
               title={title}
               reason={placeholderReason}
-              errorMessage={
+              errorCode={
+                status?.state === 'error'
+                  ? (status.code ??
+                    (status.reason === 'timeout' ? 'timeout' : undefined))
+                  : undefined
+              }
+              errorDetails={
                 status?.state === 'error' ? status.message : undefined
               }
               onActivate={
@@ -446,7 +557,7 @@ function EmbeddedWidgetDisplay({
                   ? handleActivate
                   : undefined
               }
-              onRetry={status?.state === 'error' ? status.retry : undefined}
+              onRetry={retry}
             />
           )}
         </div>

@@ -176,7 +176,8 @@ Draft issue: `upstream-proposals.md` A1, with the registry idea in A2.
   `maxLiveWidgets` (default 3) per client; never in slide thumbnails or
   exports.
 - The mount container has `pointer-events: none` except in the interaction
-  state (double click to enter; pointer down outside or Escape to leave) and
+  state (double click to enter; pointer down outside, Escape or the "Leave
+  widget" button to leave) and
   is hidden during pan/zoom and while off-viewport.
 - The shell stores the URL directly (not a reference to a room widget), so
   boards stay self-contained for export and copy. The URL is checked twice:
@@ -204,17 +205,25 @@ The NeoBoard widget renders embedded widgets with
   the board shows which widget (title and origin) asks for which data (read,
   write, member list). Afterwards, while the client's own dialog is open
   (it only names the board), the board explains that the request comes from
-  the embedded widget. Consent is remembered per origin for the session.
+  the embedded widget. Consent is remembered per widget URL (origin and
+  path, normalised like the policy) for the session; two widgets on one
+  origin never share a consent. A remote change of an element's URL while
+  it runs deactivates the element (new activation and consent needed).
 - Capabilities declared in the shell are asked for on activation and then
   requested from the client (`prerequestCapabilities`) while the widget boots.
-- Modals (`open_modal`) are forwarded only for origins listed in
-  `REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS` (default: none). Rendering modals
-  inside the board is a follow-up.
+- Modals (`open_modal`): per policy rule (`modals`), see §5e. Without a
+  rule field, forwarded for origins in `REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS`
+  (default: none).
 - UI states (icon + text + polite live region, not colour alone): placeholder
   (inactive), loading, permissions (consent / client dialog), ready (dimmed,
   "double-click to use"), interacting (thick coloured frame, "you are in the
-  widget", "only you see this"), error / denied with "Try again"
-  (`retryCapabilities` or reload). When the widget sends an event (shared
+  widget", "only you see this", "Leave widget" button), error / denied with
+  a localised message per error code (technical text as tooltip and in the
+  console) and "Try again" (`retryCapabilities` or reload; not offered for
+  permanent errors such as a refused origin). Permissions refused by the
+  policy show "x of y permissions not available here"; if nothing or no
+  write permission is left, the state reads "Not supported here" instead of
+  "Ready". When the widget sends an event (shared
   state), the element glows briefly and shows "everyone sees this now"
   (mediation hook `onEventSent`, no event content).
 
@@ -245,10 +254,11 @@ fallback is empty. The embedded widget settings therefore fall back to
 
 - Clients without this element type reject documents containing it (closed
   element union, no document version bump).
-- Modals of embedded widgets run top-level in the client under the board's
-  identity; rendering them inside the board is a follow-up.
+- Modals in `forward` mode run top-level in the client under the board's
+  identity; `inline` (§5e) avoids this.
 - Escape pressed inside the embedded widget does not leave the interaction
-  state (key events do not leave the iframe); click outside works.
+  state (key events do not leave the iframe); click outside and the "Leave
+  widget" button (keyboard reachable with Tab / Shift+Tab) work.
 - No UI yet for editing URL/title or for declaring capabilities.
 - Rotation is not supported for this element.
 
@@ -366,6 +376,39 @@ its own copy of these types instead:
 --nested-neoboard-url <origin>` emits the namespaced capabilities for the
   NeoBoard lifecycle rule and the layer-2 rule with `event_namespace`.
 
+## 5e. Modals of embedded widgets in the board (`modals: 'inline'`)
+
+Matrix Poll opens a modal widget to create or edit polls and groups. Forwarded
+to Element (`forward`), it runs top-level under NeoBoard's identity
+(`modal_<NeoBoard id>`), asks for all Poll capabilities again (a third Element
+dialog without a lifecycle rule) and Element sees the Poll origin. In `inline`
+mode NeoBoard shows the modal itself:
+
+- **Policy:** rule field `modals: "deny" | "forward" | "inline"`. Not set:
+  `forward` for origins in `REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS`, else
+  `deny`. Invalid value: policy invalid. The generator writes `inline` by
+  default (`--modals forward` restores the modal lifecycle rules).
+- **Mediator** (`packages/widget-mediation/src/inlineModal.ts`, options
+  `modals: 'inline'` + `onModalRequest`): `open_modal` (own origin only, one
+  per widget) is acknowledged and handed to the host as an
+  `EmbeddedModalRequest`. `mount(container)` starts a second mediated
+  instance of the modal URL with widget id `modal_<embedded id>` (the toolkit
+  only enters modal mode with this prefix; the task's working name
+  `embedded-modal-<id>` would not). Its allow-list is the parent's granted
+  set and it never asks upward (`maxCapabilityRequests: 0`), so no Element
+  dialog. After `ready` it receives `widget_config` (type, url, name,
+  buttons, data); `button_clicked` for enabled buttons; `set_button_enabled`
+  (not `m.close`, not unknown ids); `close_modal` from the modal ends it and
+  delivers the data to the parent; `cancel()` delivers `{"m.exited": true}`;
+  parent removal/reload ends it silently. Forward and deny are unchanged.
+- **Board** (`EmbeddedWidgetModalDialog.tsx`): MUI dialog (focus trap,
+  labelled by the modal name, described by the origin note), the modal
+  iframe, the buttons (first rightmost; kinds mapped to MUI variants), a
+  close button; Escape and close cancel, the backdrop does nothing. React
+  events from the dialog portal do not reach the board element. Renderer
+  prop `onModalChange` (react-sdk), wiring in `mediationRenderer.ts`.
+- **Strings:** `embeddedWidget.modal.*` (de/en).
+
 ## 6. Build and environment settings
 
 ### 6.1 Runtime environment (container)
@@ -373,7 +416,7 @@ its own copy of these types instead:
 | Variable                                         | Default     | Meaning                                                                                                                                                                               |
 | ------------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `REACT_APP_EMBEDDED_WIDGET_ALLOWED_ORIGINS`      | empty       | Comma-separated `https` origins whose widgets may be embedded. Without a policy: the allow-list; empty disables embedding and hides the insertion action. With a policy: upper bound. |
-| `REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS`        | empty       | Subset of the allowed origins whose widgets may open client modals (needed to create polls).                                                                                          |
+| `REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS`        | empty       | Subset of the allowed origins whose widgets may open client modals (`forward`) unless their policy rule sets `modals` (§5e).                                                          |
 | `REACT_APP_EMBEDDED_WIDGET_POLICY`               | empty       | Operator policy (§5c), JSON or `base64:<JSON>`. Invalid disables embedding.                                                                                                           |
 | `REACT_APP_EMBEDDED_WIDGET_INITIAL_UNION`        | `false`     | `true`: add the policy's capabilities to NeoBoard's initial capability request (§5c).                                                                                                 |
 | `REACT_APP_EMBEDDED_WIDGET_ALLOWED_CAPABILITIES` | empty       | Exact capabilities in addition to the Poll allow-list. Without a policy: granted to every allowed widget. With a policy: upper bound for the rules (§5c). Hard deny-list always wins. |
@@ -482,12 +525,11 @@ Sorted by risk.
    capabilities again (`upstream-proposals.md` B1). Hardened deployments avoid
    the dialogs, and with them this problem, by pre-approving the full union
    with the widget lifecycle module (§10).
-5. **Modals (medium, functional).** Matrix Poll needs `open_modal` to create
-   and edit polls. The mediation default is `'deny'`, so polls can be voted on
-   but not created inside the board. Gate 2 forwards modals for origins in
-   `REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS` (top-level modal in the client,
-   needs lifecycle rules for modal URLs); host-rendered modals
-   (`architecture.md` §4) are a follow-up.
+5. **Modals (low).** Matrix Poll needs `open_modal` to create and edit
+   polls. With the policy field `modals: "inline"` NeoBoard shows them in a
+   board dialog (§5e); `forward` (top-level client modal, needs lifecycle
+   rules for modal URLs) remains as fallback. The mediation default stays
+   `'deny'`.
 6. **Rate limits (medium).** Embedded widgets share the user's homeserver
    budget with NeoBoard's snapshot writer. The aggregate default (1 event per
    2 s) is above Synapse's default `rc_message` (0.2/s). Tune per deployment;
@@ -529,11 +571,12 @@ Former `TODO(E)`; details in §5a.
 - UI states placeholder, loading, permissions, ready, interacting,
   error/denied with retry; icon + text + live region, not colour alone.
 - Modals: forwarded only for `REACT_APP_EMBEDDED_WIDGET_MODAL_ORIGINS`;
-  host-rendered modals are a follow-up.
+  host-rendered modals followed later (§5e).
 - Result: real Matrix Poll on the board in Element Web for two users, votes
   via Matrix events, shell via CRDT, also in an encrypted room.
 - Open: measurements (FPS during pan/zoom, memory with several widgets);
-  Escape inside the widget does not leave the interaction state (§5b).
+  Escape inside the widget does not leave the interaction state; use the
+  "Leave widget" button (§5b).
 
 ## 10. Hardening and widget lifecycle module (from the hardening work)
 
