@@ -15,7 +15,11 @@
  */
 
 import { getEnvironment } from '@matrix-widget-toolkit/mui';
+import { isEmbeddedBoard } from './isEmbeddedBoard';
 
 export function isMatrixRtcMode(): boolean {
+  // MatrixRTC (sticky/delayed events, RTC transports) is never delegated to
+  // an embedded board; it uses the session/WebRTC transport instead.
+  if (isEmbeddedBoard()) return false;
   return getEnvironment('REACT_APP_RTC', 'matrixrtc') === 'matrixrtc';
 }

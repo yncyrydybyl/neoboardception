@@ -184,6 +184,58 @@
     "deleteElement": "Delete",
     "title": "Element"
   },
+  "embeddedWidget": {
+    "activate": "Load widget",
+    "consent": {
+      "allow": "Allow",
+      "awaitingText": "The dialog asks on behalf of the NeoBoard. The request comes from the embedded widget “{{name}}” ({{origin}}); the permissions are used by this widget only.",
+      "awaitingTitle": "Please confirm in the dialog of your Matrix client",
+      "deny": "Deny",
+      "explanationClient": "This widget runs inside the NeoBoard. After you agree, your Matrix client asks for permissions on behalf of the NeoBoard — they are used by this widget.",
+      "explanationInherited": "This widget runs inside the NeoBoard and would use permissions the NeoBoard already has.",
+      "members": "Reads the member list of this room (personal data)",
+      "origin": "Origin: {{origin}}",
+      "other": "Other: {{capabilities}}",
+      "reads": "Reads: {{types}}",
+      "title": "“{{name}}” wants to access this room",
+      "writes": "Writes (visible to everyone in the room): {{types}}"
+    },
+    "context": {
+      "preapproved": "Approved by your administrator",
+      "preapprovedDetail": "Your administrator approved the permissions of “{{name}}” ({{origin}}) in advance.",
+      "private": "Only you see this",
+      "shared": "Everyone sees this now"
+    },
+    "dialog": {
+      "cancel": "Cancel",
+      "errorInvalid": "Please enter a valid https address.",
+      "errorPolicy": "This widget address is not allowed on this board.",
+      "submit": "Embed",
+      "title": "Embed widget",
+      "titleLabel": "Title (optional)",
+      "urlLabel": "Widget address"
+    },
+    "embedTool": "Embed widget",
+    "retry": "Try again",
+    "state": {
+      "error": "Error",
+      "interacting": "You are in the widget – Esc or click outside to leave",
+      "loading": "Loading",
+      "permissions": "Asking for permissions",
+      "ready": "Ready – double-click to use",
+      "suspended": "Paused"
+    },
+    "status": {
+      "blocked": "This widget address is not allowed on this board.",
+      "denied": "The widget did not get any permission and cannot run.",
+      "error": "The widget could not be loaded.",
+      "inactive": "Widget not loaded.",
+      "invalid": "Invalid widget address.",
+      "loading": "Loading widget…",
+      "suspended": "Widget paused."
+    },
+    "untitled": "Embedded widget"
+  },
   "fullscreenModeBar": {
     "fullscreenOff": "Fullscreen off",
     "fullscreenOn": "Fullscreen on",

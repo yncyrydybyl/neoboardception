@@ -20,6 +20,7 @@ export { filterRecord } from './filterRecord';
 export { findForegroundColor } from './findForegroundColor';
 export { acquireImageUrl, releaseImageUrl } from './imageBlobCache';
 export { isDefined } from './isDefined';
+export { EMBEDDED_WIDGET_ID_PREFIX, isEmbeddedBoard } from './isEmbeddedBoard';
 export { isInfiniteCanvasMode } from './isInfiniteCanvasMode';
 export { isMatrixRtcMode } from './isMatrixRtcMode';
 export { setLocale } from './locale';

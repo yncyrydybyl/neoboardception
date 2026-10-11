@@ -19,7 +19,7 @@ import { useWidgetApi } from '@matrix-widget-toolkit/react';
 import first from 'lodash/first';
 import loglevel from 'loglevel';
 import { useAsync } from 'react-use';
-import { isInfiniteCanvasMode, isMatrixRtcMode } from '../lib';
+import { isEmbeddedBoard, isInfiniteCanvasMode, isMatrixRtcMode } from '../lib';
 import { RtcSlot, STATE_EVENT_WHITEBOARD_SESSIONS, Whiteboard } from '../model';
 import { useAppDispatch } from '../store';
 import {
@@ -76,9 +76,13 @@ export function useOwnedWhiteboard(): UseOwnedWhiteboardResponse {
 
   // TODO: Build UI to select the whiteboard to display it in the widget
   // For now we select the own / first whiteboard we find.
+  // An embedded board only ever shows its own whiteboard: boards embedded
+  // in the same room share one event namespace.
   const whiteboard = whiteboardsState
     ? (selectWhiteboardById(whiteboardsState, widgetApi.widgetId) ??
-      first(selectAllWhiteboards(whiteboardsState)))
+      (isEmbeddedBoard()
+        ? undefined
+        : first(selectAllWhiteboards(whiteboardsState))))
     : undefined;
 
   const rtcSlot = rtcSlotsState
@@ -96,7 +100,9 @@ export function useOwnedWhiteboard(): UseOwnedWhiteboardResponse {
     error,
   } = useAsync(async () => {
     if (canInitializeWhiteboard && !whiteboard && !isLoading && !isError) {
-      if (!isMatrixRtcMode()) {
+      // An embedded board cannot change power levels; the hosting board
+      // prepares them (see the embedded widget renderer of the widget).
+      if (!isMatrixRtcMode() && !isEmbeddedBoard()) {
         try {
           // TODO: We only set the power level once, if it's later changed we can't
           // handle it. It would be better to show a UI to a moderator to repair

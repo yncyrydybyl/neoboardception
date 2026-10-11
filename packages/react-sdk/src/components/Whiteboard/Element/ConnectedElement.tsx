@@ -16,6 +16,7 @@
 
 import { useWidgetApi } from '@matrix-widget-toolkit/react';
 import React, { JSX } from 'react';
+import EmbeddedWidgetDisplay from '../../../embeddedWidget/EmbeddedWidgetDisplay';
 import {
   Elements,
   isInfiniteCanvasPresentationEdit,
@@ -156,6 +157,8 @@ const ConnectedElement = ({
       );
     } else if (element.type === 'frame') {
       return <FrameDisplay {...element} {...otherProps} />;
+    } else if (element.type === 'embedded-widget') {
+      return <EmbeddedWidgetDisplay {...element} {...otherProps} />;
     }
   }
 

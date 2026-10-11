@@ -24,6 +24,7 @@ import {
   ConnectionStateDialog,
   ConnectionStateProvider,
   DraggableStyles,
+  EmbeddedWidgetProvider,
   FontsLoadedContextProvider,
   GuidedTourProvider,
   LayoutStateProvider,
@@ -36,8 +37,14 @@ import {
   WhiteboardManager,
   WhiteboardManagerProvider,
 } from '@nordeck/matrix-neoboard-react-sdk';
-import { Suspense } from 'react';
+import { Suspense, useMemo } from 'react';
 import { Provider } from 'react-redux';
+import { getEmbeddedWidgetConfig } from './embeddedWidgets/config';
+import { createMediationRenderer } from './embeddedWidgets/mediationRenderer';
+
+// Deployment configuration of embedded widgets (origin allow-list or
+// operator policy). Embedding is disabled when no origin is allowed.
+const embeddedWidgetConfig = getEmbeddedWidgetConfig();
 
 export const AppContainer = ({
   store,
@@ -48,6 +55,20 @@ export const AppContainer = ({
   store: StoreType;
   whiteboardManager: WhiteboardManager;
 }) => {
+  const embeddedWidgetHost = useMemo(
+    () =>
+      embeddedWidgetConfig.allowedOrigins.length > 0
+        ? createMediationRenderer({
+            widgetApiPromise,
+            allowedOrigins: embeddedWidgetConfig.allowedOrigins,
+            modalOrigins: embeddedWidgetConfig.modalOrigins,
+            resolvePolicy: embeddedWidgetConfig.resolveMountPolicy,
+            maxCapabilityRequests: embeddedWidgetConfig.maxCapabilityRequests,
+          })
+        : undefined,
+    [widgetApiPromise],
+  );
+
   return (
     <Provider store={store}>
       <WhiteboardManagerProvider whiteboardManager={whiteboardManager}>
@@ -75,7 +96,17 @@ export const AppContainer = ({
                         <ConnectionStateProvider>
                           <ConnectionStateDialog />
                           <SnapshotLoadStateDialog />
-                          <App />
+                          <EmbeddedWidgetProvider
+                            renderer={embeddedWidgetHost?.renderer}
+                            preload={embeddedWidgetHost?.preload}
+                            isUrlAllowed={embeddedWidgetConfig.isUrlAllowed}
+                            maxLiveWidgets={embeddedWidgetConfig.maxLiveWidgets}
+                            insertionEnabled={
+                              embeddedWidgetConfig.allowedOrigins.length > 0
+                            }
+                          >
+                            <App />
+                          </EmbeddedWidgetProvider>
                         </ConnectionStateProvider>
                       </SnackbarProvider>
                     </GuidedTourProvider>

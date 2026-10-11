@@ -19,6 +19,10 @@ import loglevel from 'loglevel';
 // Do not import from the index file to prevent cyclic dependencies
 import clamp from 'lodash/clamp';
 import { defaultAcceptedImageTypes } from '../../../components/ImageUpload/consts';
+import {
+  createEmbeddedWidgetElementSchemaKeys,
+  type EmbeddedWidgetElement,
+} from '../../../embeddedWidget/element';
 import { defaultStrokeWidth } from '../../pathConstants';
 import { Elements } from '../../types';
 import {
@@ -205,7 +209,20 @@ export const imageElementSchema = elementBaseSchema
   })
   .required();
 
-export type Element = ShapeElement | PathElement | ImageElement | FrameElement;
+export type { EmbeddedWidgetElement };
+
+export const embeddedWidgetElementSchema = elementBaseSchema
+  .append<EmbeddedWidgetElement>(
+    createEmbeddedWidgetElementSchemaKeys(disallowElementIds),
+  )
+  .required();
+
+export type Element =
+  | ShapeElement
+  | PathElement
+  | ImageElement
+  | FrameElement
+  | EmbeddedWidgetElement;
 export type ElementKind = ShapeKind | PathKind;
 
 export const elementSchema = Joi.alternatives<Element>().conditional('.type', [
@@ -213,6 +230,7 @@ export const elementSchema = Joi.alternatives<Element>().conditional('.type', [
   { is: 'frame', then: frameElementSchema },
   { is: 'path', then: pathElementSchema },
   { is: 'image', then: imageElementSchema },
+  { is: 'embedded-widget', then: embeddedWidgetElementSchema },
 ]);
 
 export function isValidElement(element: unknown): element is Element {
@@ -435,7 +453,7 @@ export function modifyElementPosition<T extends ElementBase>(
  * @param frameElements
  */
 export function copyElementWithAttachedFrame<
-  T extends ShapeElement | PathElement | ImageElement,
+  T extends ShapeElement | PathElement | ImageElement | EmbeddedWidgetElement,
 >(element: T, frameElements: Elements<FrameElement>): T {
   const frameElementId = findFrameToAttach(element, frameElements);
 
@@ -457,7 +475,7 @@ export function copyElementWithAttachedFrame<
  * @returns frame id
  */
 export function findFrameToAttach(
-  element: ShapeElement | PathElement | ImageElement,
+  element: ShapeElement | PathElement | ImageElement | EmbeddedWidgetElement,
   frameElements: Elements<FrameElement>,
 ): string | undefined {
   const { offsetX, offsetY, width, height } =

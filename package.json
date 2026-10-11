@@ -46,7 +46,7 @@
     "tsc": "yarn workspaces run tsc",
     "deduplicate": "yarn-deduplicate",
     "depcheck": "yarn depcheck:root && yarn workspaces run depcheck",
-    "depcheck:root": "depcheck --ignores=prettier-plugin-organize-imports,@changesets/cli,react,react-dom,react-i18next,i18next",
+    "depcheck:root": "depcheck --ignores=prettier-plugin-organize-imports,@changesets/cli,react,react-dom,react-i18next,i18next --ignore-patterns=spike",
     "lint": "yarn workspaces run lint --max-warnings=0",
     "prepare": "husky",
     "translate": "yarn workspaces run translate",

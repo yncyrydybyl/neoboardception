@@ -23,6 +23,7 @@ export * from './components/Snackbar';
 export * from './components/Whiteboard';
 export { DraggableStyles } from './components/Whiteboard/ElementBehaviors/Moveable';
 export * from './components/WhiteboardHotkeysProvider';
+export * from './embeddedWidget';
 export * from './i18n';
 export * from './lib';
 export * from './model';

@@ -184,6 +184,58 @@
     "deleteElement": "Löschen",
     "title": "Element"
   },
+  "embeddedWidget": {
+    "activate": "Widget laden",
+    "consent": {
+      "allow": "Erlauben",
+      "awaitingText": "Der Dialog fragt im Namen des NeoBoards. Die Anfrage kommt vom eingebetteten Widget „{{name}}“ ({{origin}}); nur dieses Widget nutzt die Berechtigungen.",
+      "awaitingTitle": "Bitte im Dialog deines Matrix-Clients bestätigen",
+      "deny": "Ablehnen",
+      "explanationClient": "Dieses Widget läuft im NeoBoard. Wenn du zustimmst, fragt dein Matrix-Client im Namen des NeoBoards nach Berechtigungen – genutzt werden sie von diesem Widget.",
+      "explanationInherited": "Dieses Widget läuft im NeoBoard und würde Berechtigungen nutzen, die das NeoBoard bereits hat.",
+      "members": "Liest die Mitgliederliste dieses Raums (personenbezogene Daten)",
+      "origin": "Herkunft: {{origin}}",
+      "other": "Sonstiges: {{capabilities}}",
+      "reads": "Liest: {{types}}",
+      "title": "„{{name}}“ möchte auf diesen Raum zugreifen",
+      "writes": "Schreibt (für alle im Raum sichtbar): {{types}}"
+    },
+    "context": {
+      "preapproved": "Von deiner Administration freigegeben",
+      "preapprovedDetail": "Deine Administration hat die Berechtigungen von „{{name}}“ ({{origin}}) vorab freigegeben.",
+      "private": "Nur du siehst das",
+      "shared": "Das sehen jetzt alle"
+    },
+    "dialog": {
+      "cancel": "Abbrechen",
+      "errorInvalid": "Bitte gib eine gültige https-Adresse ein.",
+      "errorPolicy": "Diese Widget-Adresse ist auf diesem Board nicht erlaubt.",
+      "submit": "Einbetten",
+      "title": "Widget einbetten",
+      "titleLabel": "Titel (optional)",
+      "urlLabel": "Widget-Adresse"
+    },
+    "embedTool": "Widget einbetten",
+    "retry": "Erneut versuchen",
+    "state": {
+      "error": "Fehler",
+      "interacting": "Du bist im Widget – Esc oder Klick daneben zum Verlassen",
+      "loading": "Lädt",
+      "permissions": "Berechtigungen werden angefragt",
+      "ready": "Bereit – Doppelklick zum Bedienen",
+      "suspended": "Pausiert"
+    },
+    "status": {
+      "blocked": "Diese Widget-Adresse ist auf diesem Board nicht erlaubt.",
+      "denied": "Das Widget hat keine Berechtigung erhalten und kann nicht laufen.",
+      "error": "Das Widget konnte nicht geladen werden.",
+      "inactive": "Widget nicht geladen.",
+      "invalid": "Ungültige Widget-Adresse.",
+      "loading": "Widget wird geladen…",
+      "suspended": "Widget pausiert."
+    },
+    "untitled": "Eingebettetes Widget"
+  },
   "fullscreenModeBar": {
     "fullscreenOff": "Vollbild aus",
     "fullscreenOn": "Vollbild an",

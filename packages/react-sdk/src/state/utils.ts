@@ -19,6 +19,7 @@ import isEqual from 'lodash/isEqual';
 import uniq from 'lodash/uniq';
 import {
   Element,
+  EmbeddedWidgetElement,
   FrameElement,
   ImageElement,
   PathElement,
@@ -252,7 +253,9 @@ export function changeFrameElements(
  * Create a patch to attach and detach a frame to an element
  */
 export function changeElementFrame(
-  { attachedFrame }: ShapeElement | PathElement | ImageElement,
+  {
+    attachedFrame,
+  }: ShapeElement | PathElement | ImageElement | EmbeddedWidgetElement,
   frameElementId: string | undefined,
 ): Pick<ShapeElement, 'attachedFrame'> | undefined {
   if (!frameElementId) {
@@ -431,6 +434,9 @@ export function deleteRelations(element: Element): Element {
   } else if (element.type === 'image') {
     const { attachedFrame, ...newImage } = element;
     return newImage;
+  } else if (element.type === 'embedded-widget') {
+    const { attachedFrame, ...newEmbeddedWidget } = element;
+    return newEmbeddedWidget;
   } else {
     return element;
   }

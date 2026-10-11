@@ -16,6 +16,7 @@
 
 import { Box } from '@mui/material';
 import { PropsWithChildren } from 'react';
+import { EmbeddedWidgetPreview } from '../../embeddedWidget/EmbeddedWidgetProvider';
 import { isInfiniteCanvasMode } from '../../lib';
 import {
   useFrameElement,
@@ -69,28 +70,30 @@ export function SlidePreview({
         <SlideSkeleton />
       ) : (
         <SvgScaleContextProvider>
-          <SvgCanvas
-            viewportWidth={whiteboardWidth}
-            viewportHeight={whiteboardHeight}
-            viewBox={viewBox}
-            preview={true}
-          >
-            {elementIds.map((e) => {
-              if (isInfiniteCanvasModeEnabled) {
-                if (
-                  !frameElement ||
-                  frameElement.attachedElements?.includes(e)
-                ) {
-                  // Keep element if no frame is selected or if attached to selected frame
-                  return <ConnectedElement id={e} key={e} readOnly />;
+          <EmbeddedWidgetPreview>
+            <SvgCanvas
+              viewportWidth={whiteboardWidth}
+              viewportHeight={whiteboardHeight}
+              viewBox={viewBox}
+              preview={true}
+            >
+              {elementIds.map((e) => {
+                if (isInfiniteCanvasModeEnabled) {
+                  if (
+                    !frameElement ||
+                    frameElement.attachedElements?.includes(e)
+                  ) {
+                    // Keep element if no frame is selected or if attached to selected frame
+                    return <ConnectedElement id={e} key={e} readOnly />;
+                  } else {
+                    return null;
+                  }
                 } else {
-                  return null;
+                  return <ConnectedElement id={e} key={e} readOnly />;
                 }
-              } else {
-                return <ConnectedElement id={e} key={e} readOnly />;
-              }
-            })}
-          </SvgCanvas>
+              })}
+            </SvgCanvas>
+          </EmbeddedWidgetPreview>
         </SvgScaleContextProvider>
       )}
     </Box>

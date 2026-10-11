@@ -22,6 +22,7 @@ import SquareIcon from '@mui/icons-material/Square';
 import TitleRoundedIcon from '@mui/icons-material/TitleRounded';
 import { ChangeEvent, ReactElement, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { EmbedWidgetButton } from '../../embeddedWidget/EmbedWidgetButton';
 import { isInfiniteCanvasMode } from '../../lib';
 import { useSlideIsLocked, useWhiteboardSlideInstance } from '../../state';
 import { Toolbar, ToolbarButton, ToolbarRadioGroup } from '../common/Toolbar';
@@ -148,6 +149,7 @@ export function ToolsBar() {
           >
             <UploadIcon sx={{ height: 22 }} />
           </ToolbarButton>
+          <EmbedWidgetButton disabled={isLocked} />
         </ToolbarRadioGroup>
       </Toolbar>
     </>

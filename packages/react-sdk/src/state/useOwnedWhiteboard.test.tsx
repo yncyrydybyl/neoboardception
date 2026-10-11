@@ -519,3 +519,50 @@ describe('useOwnedWhiteboard', () => {
     // expect(result.error).toEqual(new Error('Could not update whiteboard: Error on sending state events'));
   });
 });
+
+describe('useOwnedWhiteboard in an embedded board', () => {
+  let Wrapper: ComponentType<PropsWithChildren<{}>>;
+  const original = window.location.href;
+
+  beforeEach(() => {
+    // The mediation gives an embedded board the id "embedded-<element id>".
+    window.history.replaceState({}, '', '/?widgetId=embedded-element-1');
+    Wrapper = ({ children }) => {
+      const [store] = useState(() => createStore({ widgetApi }));
+      return (
+        <WidgetApiMockProvider value={widgetApi}>
+          <Provider store={store}>{children}</Provider>
+        </WidgetApiMockProvider>
+      );
+    };
+  });
+
+  afterEach(() => window.history.replaceState({}, '', original));
+
+  it('creates its own whiteboard instead of showing another board of the room, without touching power levels', async () => {
+    widgetApi.mockSendStateEvent(mockPowerLevelsEvent());
+    widgetApi.mockSendStateEvent(mockWhiteboard({ state_key: 'other-board' }));
+
+    const { result } = renderHook(() => useOwnedWhiteboard(), {
+      wrapper: Wrapper,
+    });
+
+    await waitFor(() => {
+      expect(widgetApi.sendStateEvent).toHaveBeenCalledWith(
+        'net.nordeck.whiteboard',
+        expect.anything(),
+        { stateKey: 'widget-id' },
+      );
+    });
+    expect(widgetApi.sendStateEvent).not.toHaveBeenCalledWith(
+      'm.room.power_levels',
+      expect.anything(),
+    );
+    await waitFor(() => {
+      expect(result.current).toMatchObject({
+        loading: false,
+        value: { type: 'whiteboard', event: { state_key: 'widget-id' } },
+      });
+    });
+  });
+});

@@ -277,6 +277,38 @@ An image element
 }
 ```
 
+### `EmbeddedWidgetElement`
+
+The shell of an embedded (Matrix) widget. Only the shell is stored in the
+document; widget content and runtime state (iframe, focus, interaction,
+capability grants, widget data such as poll votes) are never part of it.
+
+#### Fields
+
+| Field           | Type                    | Description                                                                                                                      |
+| --------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `type`          | `'embedded-widget'`     | Identifies the element as an embedded widget.                                                                                    |
+| `widgetUrl`     | `string`                | Absolute `https` URL of the widget (max. 2048 characters, no credentials). May contain Matrix widget template variables.         |
+| `title`         | `string \| undefined`   | Optional title (max. 256 characters).                                                                                            |
+| `capabilities`  | `string[] \| undefined` | Optional capabilities the widget is expected to request (max. 64, unique). A hint for early capability requests; grants nothing. |
+| `position`      | `Point`                 | The position of the element on the whiteboard canvas.                                                                            |
+| `width`         | `number`                | Scaling of the element on the x-axis.                                                                                            |
+| `height`        | `number`                | Scaling of the element on the y-axis.                                                                                            |
+| `attachedFrame` | `string \| undefined`   | The ID of the frame this element is attached to.                                                                                 |
+
+#### Example
+
+```json
+{
+  "type": "embedded-widget",
+  "widgetUrl": "https://widgets.example.org/poll/#/?roomId=$matrix_room_id",
+  "title": "Team poll",
+  "position": { "x": 50, "y": 100 },
+  "width": 480,
+  "height": 360
+}
+```
+
 ### `FrameElement`
 
 (Only with feature flag `REACT_APP_INFINITE_CANVAS`).

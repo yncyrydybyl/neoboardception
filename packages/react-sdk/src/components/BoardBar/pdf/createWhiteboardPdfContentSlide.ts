@@ -15,6 +15,7 @@
  */
 
 import { Content } from 'pdfmake/interfaces';
+import { embeddedWidgetToPdfShape } from '../../../embeddedWidget/pdf';
 import { Element, Point, WhiteboardSlideInstance } from '../../../state';
 import { WhiteboardFileExport } from '../../../state/export/whiteboardDocumentExport';
 import { createWhiteboardPdfElementImage } from './createWhiteboardPdfElementImage';
@@ -56,6 +57,11 @@ export async function createWhiteboardPdfContentSlide(
             noImageSvg,
           );
         }
+
+        case 'embedded-widget':
+          return createWhiteboardPdfElementShape(
+            embeddedWidgetToPdfShape(newElement),
+          );
 
         default:
           console.error('Unknown element type', newElement);

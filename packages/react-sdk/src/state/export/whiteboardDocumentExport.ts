@@ -18,6 +18,8 @@ import Joi, { AnySchema } from 'joi';
 import loglevel from 'loglevel';
 import {
   disallowElementIds,
+  EmbeddedWidgetElement,
+  embeddedWidgetElementSchema,
   FrameElement,
   frameElementSchema,
   ImageElement,
@@ -43,6 +45,8 @@ export type FrameElementExport = ElementWithId & FrameElement;
 
 type ImageElementExport = ElementWithId & ImageElement;
 
+type EmbeddedWidgetElementExport = ElementWithId & EmbeddedWidgetElement;
+
 const elementWithIdBaseSchema = {
   id: Joi.string().not(...disallowElementIds),
 };
@@ -63,11 +67,16 @@ const imageElementExportSchema = imageElementSchema
   .append(elementWithIdBaseSchema)
   .required();
 
+const embeddedWidgetElementExportSchema = embeddedWidgetElementSchema
+  .append(elementWithIdBaseSchema)
+  .required();
+
 export type ElementExport =
   | ShapeElementExport
   | PathElementExport
   | FrameElementExport
-  | ImageElementExport;
+  | ImageElementExport
+  | EmbeddedWidgetElementExport;
 
 const elementExportSchema = Joi.alternatives<ElementExport>().conditional(
   '.type',
@@ -76,6 +85,7 @@ const elementExportSchema = Joi.alternatives<ElementExport>().conditional(
     { is: 'path', then: pathElementExportSchema },
     { is: 'frame', then: frameElementExportSchema },
     { is: 'image', then: imageElementExportSchema },
+    { is: 'embedded-widget', then: embeddedWidgetElementExportSchema },
   ],
 );
 

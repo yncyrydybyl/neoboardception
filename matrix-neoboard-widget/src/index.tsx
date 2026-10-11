@@ -14,16 +14,25 @@
  * limitations under the License.
  */
 
-import { WidgetApiImpl } from '@matrix-widget-toolkit/api';
+import {
+  extractWidgetParameters,
+  WidgetApiImpl,
+} from '@matrix-widget-toolkit/api';
 import { getEnvironment, getNonce } from '@matrix-widget-toolkit/mui';
 import {
   createStore,
   createWhiteboardManager,
+  isEmbeddedBoard,
 } from '@nordeck/matrix-neoboard-react-sdk';
 import log from 'loglevel';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppContainer } from './AppContainer';
+import {
+  getEmbeddedWidgetConfig,
+  withInitialCapabilities,
+} from './embeddedWidgets/config';
+import { capabilitiesForEmbeddedBoard } from './embeddedWidgets/nestedBoard';
 import './i18n';
 import './logger';
 import { widgetCapabilities } from './widgetCapabilities';
@@ -48,8 +57,33 @@ if (process.env.NODE_ENV === 'development') {
   log.setDefaultLevel('debug');
 }
 
+// Optional "initial union": the capabilities of all embedded widgets in the
+// operator policy are part of the first request, so the client asks once.
+// Must be known synchronously, before the handshake starts.
+// Call capabilities (operator opt-in `matrixrtc`) are specific to the
+// user and device, which the widget URL carries.
+const initialCapabilities = (() => {
+  const config = getEmbeddedWidgetConfig();
+  try {
+    const { userId, deviceId, roomId } = extractWidgetParameters();
+    return config.initialCapabilitiesFor({
+      userId: userId ?? '',
+      deviceId,
+      roomId: roomId ?? '',
+    });
+  } catch {
+    return config.initialCapabilities;
+  }
+})();
 const widgetApiPromise = WidgetApiImpl.create({
-  capabilities: widgetCapabilities,
+  capabilities: withInitialCapabilities(
+    // Embedded in another board: without the capabilities embedded widgets
+    // never get (see nestedBoard.ts).
+    isEmbeddedBoard()
+      ? capabilitiesForEmbeddedBoard(widgetCapabilities)
+      : widgetCapabilities,
+    initialCapabilities,
+  ),
 });
 
 // NeoBoardception spike: compiled in only when the build sets
