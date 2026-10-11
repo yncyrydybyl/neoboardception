@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NeoBoardception Testwidget</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 6px;
+        font:
+          12px system-ui,
+          sans-serif;
+        background: #fffde7;
+        color: #222;
+      }
+      h1 {
+        font-size: 13px;
+        margin: 0 0 4px;
+      }
+      button {
+        font: inherit;
+        margin: 2px 4px 2px 0;
+        padding: 4px 8px;
+        cursor: pointer;
+      }
+      #status {
+        font-weight: 600;
+      }
+      #result {
+        margin: 4px 0;
+        padding: 3px;
+        background: #e8f5e9;
+        min-height: 1.2em;
+      }
+      #caps,
+      #received {
+        font-family: monospace;
+        font-size: 10px;
+        white-space: pre-wrap;
+        background: #eee;
+        padding: 3px;
+        max-height: 50px;
+        overflow: auto;
+      }
+      #log {
+        font-size: 10px;
+        height: 120px;
+        overflow: auto;
+        background: #263238;
+        color: #c5e1a5;
+        margin: 4px 0 0;
+        padding: 4px;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Testwidget (Ebene 3) — Status: <span id="status">init</span></h1>
+    <button id="send">Ping senden</button>
+    <button id="more">Nachfordern</button>
+    <button id="pong">Pong senden</button>
+    <div id="result"></div>
+    <div>Genehmigte Capabilities:</div>
+    <div id="caps"></div>
+    <div>Empfangen:</div>
+    <div id="received"></div>
+    <pre id="log"></pre>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

@@ -1,11 +1,11 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "rootDir": ".",
+    "rootDir": "..",
     "noEmit": true,
     "types": ["vite/client"]
   },
-  "include": ["src"],
+  "include": ["src", "../spike/nested-host/src"],
   "references": [
     {
       "path": "./tsconfig.node.json"

@@ -52,6 +52,20 @@ const widgetApiPromise = WidgetApiImpl.create({
   capabilities: widgetCapabilities,
 });
 
+// NeoBoardception spike: compiled in only when the build sets
+// VITE_NBC_SPIKE_INNER_ORIGINS (comma-separated allow-list of inner widget
+// origins); otherwise this branch and the spike code are dropped from the bundle.
+if (import.meta.env.VITE_NBC_SPIKE_INNER_ORIGINS) {
+  import('../../spike/nested-host/src/mountSpike')
+    .then(({ maybeMountNeoBoardceptionSpike }) =>
+      maybeMountNeoBoardceptionSpike(
+        widgetApiPromise,
+        String(import.meta.env.VITE_NBC_SPIKE_INNER_ORIGINS).split(','),
+      ),
+    )
+    .catch((e) => console.error('[nbc-spike] failed', e));
+}
+
 const store = createStore({ widgetApi: widgetApiPromise });
 const whiteboardManager = createWhiteboardManager(
   store,
