@@ -34,10 +34,12 @@ export interface MatrixRtcContext {
 }
 
 /**
- * Permission-policy features an operator may delegate to a call widget.
- * Element gives a room widget `camera; microphone; display-capture;
- * autoplay; encrypted-media; clipboard-*`; nothing beyond that can be
- * delegated further anyway.
+ * Permission-policy features an operator may delegate to an embedded widget
+ * (`media_permissions`). Element gives a room widget `camera; microphone;
+ * display-capture; autoplay; encrypted-media; clipboard-*` plus
+ * `allowfullscreen`; nothing beyond that can be delegated further anyway.
+ * `fullscreen` lets e.g. an embedded board use its own fullscreen mode
+ * (`requestFullscreen()` still needs a user gesture in the widget).
  */
 export const MEDIA_PERMISSIONS = Object.freeze([
   'camera',
@@ -47,6 +49,7 @@ export const MEDIA_PERMISSIONS = Object.freeze([
   'encrypted-media',
   'clipboard-write',
   'clipboard-read',
+  'fullscreen',
 ] as const);
 
 export type MediaPermission = (typeof MEDIA_PERMISSIONS)[number];

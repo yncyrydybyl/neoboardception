@@ -3,7 +3,7 @@
   "version": 1,
   "unlisted": "deny",
   "widget_permissions": {
-    "https://poll.example.org/": {
+    "https://poll.example.org/*": {
       "name": "Poll",
       "preload_approved": false,
       "identity_approved": false,

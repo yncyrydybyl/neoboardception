@@ -386,7 +386,9 @@ const policy = {
   version: 1,
   unlisted: 'deny',
   widget_permissions: {
-    [`${pollOrigin}/`]: {
+    // Glob: an exact key would only match the bare origin URL, not a widget
+    // served under a path (e.g. https://store.example/apps/poll/1.6.2/).
+    [`${pollOrigin}/*`]: {
       name: 'Poll',
       preload_approved: preapprove,
       identity_approved: false,
@@ -395,10 +397,13 @@ const policy = {
     },
     ...(nested
       ? {
-          [`${nested.origin}/`]: {
+          [`${nested.origin}/*`]: {
             name: 'NeoBoard (embedded)',
             preload_approved: preapprove,
             identity_approved: false,
+            // The inner board's own fullscreen mode (Element grants the
+            // outer board allowfullscreen; the board passes it on only here).
+            media_permissions: ['fullscreen'],
             event_namespace: nested.namespace,
             capabilities_approved: nested.policyCaps,
           },

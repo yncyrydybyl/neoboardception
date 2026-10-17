@@ -102,7 +102,7 @@ REACT_APP_EMBEDDED_WIDGET_MAX_LIVE=3
   "version": 1,
   "unlisted": "deny",
   "widget_permissions": {
-    "https://poll.example.org/": {
+    "https://poll.example.org/*": {
       "name": "Poll",
       "preload_approved": true,
       "identity_approved": false,
@@ -133,6 +133,12 @@ REACT_APP_EMBEDDED_WIDGET_MAX_LIVE=3
   action.
 - **`identity_approved`**: the widget may request an OpenID token of the
   user (forwarded to the Matrix client). Default `false`.
+- **`media_permissions`**: browser features the board passes on to the
+  widget's iframe (`allow` attribute), at most what the Matrix client gave the
+  board: `camera`, `microphone`, `display-capture`, `autoplay`,
+  `encrypted-media`, `clipboard-write`, `clipboard-read`, `fullscreen`.
+  Default none. A board embedded in a board needs `fullscreen` for its own
+  fullscreen mode.
 - **`modals`**: what happens when the widget opens a modal dialog (Matrix Poll
   does this to create and edit polls). `inline`: the board shows it in its
   own dialog, limited to what the widget was already granted; the Matrix

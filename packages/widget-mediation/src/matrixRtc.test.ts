@@ -158,6 +158,9 @@ describe('matrixRtc helpers', () => {
       buildAllowAttribute(['microphone', 'geolocation', 'camera', 'camera']),
     ).toBe('camera; microphone');
     expect(buildAllowAttribute([])).toBe('');
+    expect(buildAllowAttribute(['fullscreen', 'camera'])).toBe(
+      'camera; fullscreen',
+    );
   });
 
   it('lifts the hard deny-list for exactly the listed strings', () => {
@@ -215,6 +218,20 @@ describe('operator policy: matrixrtc and media_permissions', () => {
       allowed: true,
       matrixRtc: true,
       mediaPermissions: ['camera', 'microphone'],
+    });
+  });
+
+  it('accepts fullscreen without matrixrtc and without a warning', () => {
+    const r = policyWith({ media_permissions: ['fullscreen'] });
+    expect(r.ok).toBe(true);
+    expect(r.warnings).toEqual([]);
+    if (!r.ok) return;
+    expect(
+      decideEmbeddedWidget(r.policy, 'https://call.example/room'),
+    ).toMatchObject({
+      allowed: true,
+      matrixRtc: false,
+      mediaPermissions: ['fullscreen'],
     });
   });
 
@@ -291,6 +308,16 @@ describe('mediation of a MatrixRTC widget', () => {
         'org.matrix.msc4515',
       ]),
     );
+  });
+
+  it('delegates fullscreen to a non-call widget when the policy grants it', async () => {
+    const outer = makeOuter();
+    const m = await mountCall(outer, {
+      matrixRtc: false,
+      mediaPermissions: ['fullscreen'],
+    });
+    expect(m.handle.iframe?.getAttribute('allow')).toBe('fullscreen');
+    expect(m.inner.clientVersions).not.toContain('org.matrix.msc3819');
   });
 
   it('keeps the empty allow attribute and versions for other widgets', async () => {

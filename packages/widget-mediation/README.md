@@ -171,19 +171,19 @@ const decision = decideEmbeddedWidget(result.policy, widgetUrl, {
 }
 ```
 
-| Rule                    | Semantics                                                                                                                                                        |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Key                     | URL pattern, `*` only as the last character (prefix). Matched against origin + path of the normalised widget URL, **without query and fragment**.                |
-| Pattern form            | Must already be normalised (`https`, lower-case host, `/` after the host, no default port, no dot segments, no `?`/`#`). Otherwise the policy is invalid.        |
-| Specificity             | An exact rule beats every glob; among globs the longest prefix wins. The winning rule is used as a whole (no merge of fields across rules).                      |
-| `capabilities_approved` | Allow-list for the widget (exact strings; `*` is an error). Hard-denied entries are dropped with a warning; the host's `deniedCapabilities` are removed as well. |
-| `preload_approved`      | `consent: 'preapproved'`: the host may skip its local consent step.                                                                                              |
-| `identity_approved`     | `identityApproved: true`: the host may pass `openId: 'forward'`. Default off.                                                                                    |
-| `name`                  | Display name chosen by the operator (extension).                                                                                                                 |
-| `unlisted`              | `'deny'` (default): URLs without a rule are refused. `'consent'`: allowed with the host's default allow-list and local consent (extension).                      |
-| `matrixrtc`             | `matrixRtc: true` for this widget (extension, default off, see below).                                                                                           |
-| `media_permissions`     | `mediaPermissions` for this widget's iframe (extension; unknown features make the policy invalid).                                                               |
-| `version`, `$comment`   | Extensions; other unknown fields are tolerated with a warning, like the module's loose schema.                                                                   |
+| Rule                    | Semantics                                                                                                                                                                                                                               |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Key                     | URL pattern, `*` only as the last character (prefix). Matched against origin + path of the normalised widget URL, **without query and fragment**.                                                                                       |
+| Pattern form            | Must already be normalised (`https`, lower-case host, `/` after the host, no default port, no dot segments, no `?`/`#`). Otherwise the policy is invalid.                                                                               |
+| Specificity             | An exact rule beats every glob; among globs the longest prefix wins. The winning rule is used as a whole (no merge of fields across rules).                                                                                             |
+| `capabilities_approved` | Allow-list for the widget (exact strings; `*` is an error). Hard-denied entries are dropped with a warning; the host's `deniedCapabilities` are removed as well.                                                                        |
+| `preload_approved`      | `consent: 'preapproved'`: the host may skip its local consent step.                                                                                                                                                                     |
+| `identity_approved`     | `identityApproved: true`: the host may pass `openId: 'forward'`. Default off.                                                                                                                                                           |
+| `name`                  | Display name chosen by the operator (extension).                                                                                                                                                                                        |
+| `unlisted`              | `'deny'` (default): URLs without a rule are refused. `'consent'`: allowed with the host's default allow-list and local consent (extension).                                                                                             |
+| `matrixrtc`             | `matrixRtc: true` for this widget (extension, default off, see below).                                                                                                                                                                  |
+| `media_permissions`     | `mediaPermissions` for this widget's iframe `allow` (extension): `camera`, `microphone`, `display-capture`, `autoplay`, `encrypted-media`, `clipboard-write`, `clipboard-read`, `fullscreen`; unknown features make the policy invalid. |
+| `version`, `$comment`   | Extensions; other unknown fields are tolerated with a warning, like the module's loose schema.                                                                                                                                          |
 
 Any error (not an object, wrong types, bad pattern, glob capability, too many
 rules or entries) makes the whole policy invalid. `policyOrigins` lists the
