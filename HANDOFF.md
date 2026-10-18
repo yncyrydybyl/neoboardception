@@ -33,6 +33,9 @@ Related documents:
   the board element and its renderer interface.
 - [`packages/widget-mediation/README.md`](packages/widget-mediation/README.md):
   the host-side Widget API package.
+- [`neoboardception-docs/presentation-transitions.md`](neoboardception-docs/presentation-transitions.md):
+  animated transitions between frames, overview and progress while
+  presenting (independent of embedded widgets).
 - [`neoboardception-docs/upstream-proposals.md`](neoboardception-docs/upstream-proposals.md):
   draft issues for NeoBoard, the toolkit, Element Web and the spec.
 - [`spike/README.md`](spike/README.md): the throwaway capability spike
