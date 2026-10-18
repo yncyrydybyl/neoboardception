@@ -40,12 +40,14 @@ import {
   mockRoomMember,
 } from '../../lib/testUtils/matrixTestUtils';
 import {
+  Point,
   WhiteboardInstance,
   WhiteboardManager,
   WhiteboardSlideInstance,
 } from '../../state';
 import { Message } from '../../state/communication';
 import { LayoutStateProvider } from '../Layout';
+import { useSvgScaleContext } from '../Whiteboard';
 import { PresentBar } from './PresentBar';
 
 let widgetApi: MockedWidgetApi;
@@ -219,6 +221,94 @@ describe('<PresentBar/>', () => {
         name: 'Previous frame',
       }),
     ).toBeInTheDocument();
+  });
+
+  describe('start frame in infinite canvas mode', () => {
+    let viewportCanvasCenter: Point;
+    let frameIds: string[];
+
+    function ViewportCenterExtractor() {
+      viewportCanvasCenter = useSvgScaleContext().viewportCanvasCenter;
+      return null;
+    }
+
+    beforeEach(() => {
+      vi.mocked(getEnvironment).mockImplementation((name, defaultValue) =>
+        name === 'REACT_APP_INFINITE_CANVAS' ? 'true' : defaultValue,
+      );
+    });
+
+    function renderWithFrames() {
+      render(
+        <>
+          <ViewportCenterExtractor />
+          <PresentBar />
+        </>,
+        { wrapper: Wrapper },
+      );
+
+      // frame 1 is far away from the view, the view is centred on frame 2
+      const { x, y } = viewportCanvasCenter;
+      act(() => {
+        frameIds = [
+          activeSlide.addElement(
+            mockFrameElement({ position: { x: x + 5000, y: y + 5000 } }),
+          ),
+          activeSlide.addElement(
+            mockFrameElement({ position: { x: x - 100, y: y - 50 } }),
+          ),
+          activeSlide.addElement(
+            mockFrameElement({ position: { x: x - 5000, y: y - 5000 } }),
+          ),
+        ];
+      });
+    }
+
+    async function clickStart() {
+      await userEvent.click(
+        within(screen.getByRole('toolbar', { name: 'Present' })).getByRole(
+          'checkbox',
+          { name: 'Start presentation', checked: false },
+        ),
+      );
+    }
+
+    it('should start on the first frame, not on the frame nearest to the view', async () => {
+      renderWithFrames();
+      expect(
+        activeWhiteboardInstance.getActiveFrameElementId(),
+      ).toBeUndefined();
+
+      await clickStart();
+
+      expect(activeWhiteboardInstance.getActiveFrameElementId()).toBe(
+        frameIds[0],
+      );
+    });
+
+    it('should start on the frame that is selected in the frame list', async () => {
+      renderWithFrames();
+      act(() => activeWhiteboardInstance.setActiveFrameElementId(frameIds[2]));
+
+      await clickStart();
+
+      expect(activeWhiteboardInstance.getActiveFrameElementId()).toBe(
+        frameIds[2],
+      );
+    });
+
+    it('should start on an explicitly passed frame', () => {
+      renderWithFrames();
+      act(() =>
+        activeWhiteboardInstance
+          .getPresentationManager()
+          ?.startPresentation(frameIds[1]),
+      );
+
+      expect(activeWhiteboardInstance.getActiveFrameElementId()).toBe(
+        frameIds[1],
+      );
+    });
   });
 
   it('should stop the presentation', async () => {

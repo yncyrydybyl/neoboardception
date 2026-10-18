@@ -24,7 +24,6 @@ import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isInfiniteCanvasMode } from '../../lib';
 import {
-  findNearestFrameElement,
   useActiveSlideOrFrame,
   useActiveWhiteboardInstance,
   usePresentationMode,
@@ -33,7 +32,6 @@ import {
 import { usePowerLevels } from '../../store/api/usePowerLevels';
 import { Toolbar, ToolbarButton, ToolbarToggle } from '../common/Toolbar';
 import { useLayoutState } from '../Layout';
-import { useSvgScaleContext } from '../Whiteboard';
 import { TransitionMenu } from './TransitionMenu';
 import { usePresentationNavigation } from './usePresentationNavigation';
 
@@ -44,7 +42,6 @@ export function PresentBar() {
   const { isShowGrid, setShowGrid } = useLayoutState();
   const { state, toggleEditMode, togglePresentation } = usePresentationMode();
   const { canStopPresentation } = usePowerLevels();
-  const { viewportCanvasCenter } = useSvgScaleContext();
   const slideOrFrameIds = useWhiteboardSlideOrFrameIds();
 
   const navigation = usePresentationNavigation();
@@ -61,14 +58,14 @@ export function PresentBar() {
       setShowGrid(storedGridStatus === 'true');
     }
 
-    const activeSlide = whiteboardInstance.getActiveSlide();
-    const frameElementId =
-      isInfiniteCanvasMode() && activeSlide
-        ? findNearestFrameElement(
-            activeSlide.getFrameElements(),
-            viewportCanvasCenter,
-          )
-        : undefined;
+    // Start on the frame that the user selected in the frame list, otherwise
+    // on the first frame of the path. The view (pan / zoom) is not taken into
+    // account: on boards with a big overview frame the frame nearest to the
+    // view centre is often somewhere in the middle of the path.
+    const frameElementId = isInfiniteCanvasMode()
+      ? (whiteboardInstance.getActiveFrameElementId() ??
+        whiteboardInstance.getActiveSlide()?.getFrameElementIds()[0])
+      : undefined;
 
     togglePresentation(frameElementId);
   }, [
@@ -77,7 +74,6 @@ export function PresentBar() {
     setShowGrid,
     togglePresentation,
     whiteboardInstance,
-    viewportCanvasCenter,
   ]);
 
   const presentBarTitle = t('presentBar.title', 'Present');

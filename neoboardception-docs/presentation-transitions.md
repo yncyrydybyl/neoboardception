@@ -11,6 +11,11 @@ they only get the progress indicator and the extra navigation keys.
 
 ## What the presenter sees
 
+"Start presentation" begins on the frame selected in the frame list. Without
+such a selection it begins on frame 1 (the first frame of the path), with the
+transition configured for frame 1. Where the view is panned or zoomed to does
+not matter: the frame nearest to the view centre is no longer used.
+
 The present bar (top right) has two new buttons while presenting on an
 infinite canvas:
 
