@@ -24,6 +24,12 @@ export type ContainerDimensions = { width: number; height: number };
 export type Operation = 'set' | 'add';
 
 /**
+ * What caused a viewport change: `user` for gestures and zoom controls,
+ * `camera` for presentation transitions.
+ */
+export type ViewportChangeSource = 'user' | 'camera';
+
+/**
  * This context provides data and functions to handle a scaled SVG element inside a container.
  */
 export type SvgScaleContextType = {
@@ -80,13 +86,43 @@ export type SvgScaleContextType = {
 
   /**
    * Move the viewport center to a specific canvas position and scale
+   *
+   * @param source - what causes the change, default `user`
    */
-  moveToPositionAndScale: (position: Point, scale: number) => void;
+  moveToPositionAndScale: (
+    position: Point,
+    scale: number,
+    source?: ViewportChangeSource,
+  ) => void;
+
+  /**
+   * What caused the last change of the viewport.
+   */
+  viewportChangeSource: ViewportChangeSource;
 };
 
 export const SvgScaleContext = createContext<SvgScaleContextType | undefined>(
   undefined,
 );
+
+/**
+ * Whether a presentation transition moves the camera continuously. Kept
+ * apart from {@link SvgScaleContext}, so that starting a flight does not
+ * render every element of the board. The viewport state of the scale
+ * context is only updated at the end of the movement.
+ */
+export type SvgCameraContextType = {
+  cameraMoving: boolean;
+  setCameraMoving: (moving: boolean) => void;
+};
+
+export const SvgCameraContext = createContext<SvgCameraContextType>({
+  cameraMoving: false,
+  setCameraMoving: () => {},
+});
+
+export const useSvgCameraContext = (): SvgCameraContextType =>
+  useContext(SvgCameraContext);
 
 export const useSvgScaleContext = (): SvgScaleContextType => {
   const context = useContext(SvgScaleContext);

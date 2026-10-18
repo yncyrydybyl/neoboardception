@@ -33,9 +33,11 @@ import {
 import { calculateScale } from '../SvgCanvas';
 import {
   ContainerDimensions,
+  SvgCameraContext,
   SvgScaleContext,
   SvgScaleContextType,
   Translation,
+  ViewportChangeSource,
 } from './context';
 import { applyOperation } from './utils';
 
@@ -49,6 +51,11 @@ type StateValues = {
    * Translation that is applied to the SVG
    */
   translation: Translation;
+
+  /**
+   * What caused the last change of the viewport.
+   */
+  source: ViewportChangeSource;
 };
 
 function fitTranslation(
@@ -84,7 +91,10 @@ export const SvgScaleContextProvider: React.FC<PropsWithChildren> = ({
       x: 0,
       y: 0,
     },
+    source: 'user',
   });
+
+  const [cameraMoving, setCameraMoving] = useState(false);
 
   const [containerDimensions, setContainerDimensionsState] =
     useState<ContainerDimensions>({ width: 0, height: 0 });
@@ -100,6 +110,7 @@ export const SvgScaleContextProvider: React.FC<PropsWithChildren> = ({
         const fittedNewState: StateValues = {
           scale: newState.scale,
           translation: fitTranslation(newState, dimensions),
+          source: newState.source,
         };
 
         if (!isEqual(fittedNewState, old)) {
@@ -142,6 +153,7 @@ export const SvgScaleContextProvider: React.FC<PropsWithChildren> = ({
         return {
           scale: newScale,
           translation: newTranslation,
+          source: 'user',
         };
       }, containerDimensions);
     },
@@ -168,6 +180,7 @@ export const SvgScaleContextProvider: React.FC<PropsWithChildren> = ({
               whiteboardHeight,
             ),
             translation: old.translation,
+            source: 'user',
           };
 
           if (!isEqual(newState, old)) {
@@ -190,6 +203,7 @@ export const SvgScaleContextProvider: React.FC<PropsWithChildren> = ({
             x: old.translation.x + changeX,
             y: old.translation.y + changeY,
           },
+          source: 'user',
         }),
         containerDimensions,
       );
@@ -232,16 +246,17 @@ export const SvgScaleContextProvider: React.FC<PropsWithChildren> = ({
   }, [stateValues]);
 
   const moveToPositionAndScale = useCallback(
-    (position: Point, scale: number) => {
+    (position: Point, scale: number, source: ViewportChangeSource = 'user') => {
       const translationX = (whiteboardWidth / 2 - position.x) * scale;
       const translationY = (whiteboardHeight / 2 - position.y) * scale;
 
-      const stateValues = {
+      const stateValues: StateValues = {
         scale,
         translation: {
           x: translationX,
           y: translationY,
         },
+        source,
       };
       updateStateValues(() => stateValues, containerDimensions);
     },
@@ -259,8 +274,10 @@ export const SvgScaleContextProvider: React.FC<PropsWithChildren> = ({
       setContainerDimensions,
       transformPointSvgToContainer,
       viewportCanvasCenter,
+      viewportChangeSource: stateValues.source,
     };
   }, [
+    stateValues.source,
     containerDimensions,
     setContainerDimensions,
     stateValues.scale,
@@ -272,9 +289,16 @@ export const SvgScaleContextProvider: React.FC<PropsWithChildren> = ({
     viewportCanvasCenter,
   ]);
 
+  const camera = useMemo(
+    () => ({ cameraMoving, setCameraMoving }),
+    [cameraMoving],
+  );
+
   return (
     <SvgScaleContext.Provider value={state}>
-      {children}
+      <SvgCameraContext.Provider value={camera}>
+        {children}
+      </SvgCameraContext.Provider>
     </SvgScaleContext.Provider>
   );
 };

@@ -54,7 +54,27 @@ describe('isValidPresentFrameMessage', () => {
     ).toBe(true);
   });
 
+  it('should accept the overview and catch-up flags', () => {
+    expect(
+      isValidPresentFrameMessage({
+        senderSessionId: 'sender-session-id',
+        senderUserId: '@sender-user-id:example.com',
+        content: {
+          view: {
+            isEditMode: false,
+            frameId: 'frame-0',
+            overview: true,
+            catchUp: true,
+          },
+        },
+        type: 'net.nordeck.whiteboard.present_frame',
+      }),
+    ).toBe(true);
+  });
+
   it.each<object>([
+    { view: { isEditMode: false, frameId: 'frame-0', overview: 'yes' } },
+    { view: { isEditMode: false, frameId: 'frame-0', catchUp: 1 } },
     { view: null },
     { view: 111 },
     { view: {} },

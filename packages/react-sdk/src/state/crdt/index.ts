@@ -20,4 +20,5 @@ export type {
   Document,
   DocumentStatistics,
   DocumentValidator,
+  PerformChangeOptions,
 } from './types';

@@ -377,11 +377,40 @@
   },
   "presentBar": {
     "addFrameToEnablePresentationMode": "Add a frame to enable presentation mode",
+    "closeOverview": "Close overview",
     "disableEditing": "Disable editing",
     "enableEditing": "Enable editing",
     "endPresentation": "End presentation",
+    "openFrame": "Open frame {{number}}",
+    "overview": "Overview of all frames",
+    "progress": "{{current}} of {{total}}",
+    "progressLabel": "Presentation progress",
+    "progressOverview": "Overview · {{current}} of {{total}}",
+    "showOverview": "Show all frames",
+    "speed": {
+      "fast": "Fast",
+      "normal": "Normal",
+      "slow": "Slow",
+      "title": "Speed"
+    },
     "startPresentation": "Start presentation",
-    "title": "Present"
+    "title": "Present",
+    "transition": {
+      "between": "Between frames",
+      "fade": "Fade",
+      "fadeDescription": "Fade out and in",
+      "fly": "Fly",
+      "flyDescription": "Zoom out, pan and zoom in",
+      "likePresentation": "Like all frames",
+      "none": "None",
+      "noneDescription": "Jump directly",
+      "slide": "Slide",
+      "slideDescription": "Push the frame aside",
+      "title": "Transitions",
+      "toThisFrame": "Into this frame",
+      "zoom": "Zoom",
+      "zoomDescription": "Dive into the frame"
+    }
   },
   "presentToolsBar": {
     "nextFrame": "Next frame",

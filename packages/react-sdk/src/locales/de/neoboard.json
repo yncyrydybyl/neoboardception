@@ -377,11 +377,40 @@
   },
   "presentBar": {
     "addFrameToEnablePresentationMode": "Rahmen erstellen, um Präsentationsmodus zu aktivieren",
+    "closeOverview": "Übersicht schließen",
     "disableEditing": "Bearbeitung sperren",
     "enableEditing": "Bearbeitung freigeben",
     "endPresentation": "Präsentation beenden",
+    "openFrame": "Rahmen {{number}} öffnen",
+    "overview": "Übersicht aller Rahmen",
+    "progress": "{{current}} von {{total}}",
+    "progressLabel": "Fortschritt der Präsentation",
+    "progressOverview": "Übersicht · {{current}} von {{total}}",
+    "showOverview": "Alle Rahmen zeigen",
+    "speed": {
+      "fast": "Schnell",
+      "normal": "Normal",
+      "slow": "Langsam",
+      "title": "Tempo"
+    },
     "startPresentation": "Präsentation starten",
-    "title": "Präsentieren"
+    "title": "Präsentieren",
+    "transition": {
+      "between": "Zwischen Rahmen",
+      "fade": "Überblenden",
+      "fadeDescription": "Aus- und einblenden",
+      "fly": "Fliegen",
+      "flyDescription": "Herauszoomen, schwenken, hineinzoomen",
+      "likePresentation": "Wie alle Rahmen",
+      "none": "Keiner",
+      "noneDescription": "Direkt springen",
+      "slide": "Schieben",
+      "slideDescription": "Rahmen zur Seite schieben",
+      "title": "Übergänge",
+      "toThisFrame": "In diesen Rahmen",
+      "zoom": "Zoomen",
+      "zoomDescription": "In den Rahmen eintauchen"
+    }
   },
   "presentToolsBar": {
     "nextFrame": "Nächster Rahmen",

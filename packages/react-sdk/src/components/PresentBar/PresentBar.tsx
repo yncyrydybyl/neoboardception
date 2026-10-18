@@ -17,6 +17,7 @@
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import CancelPresentationIcon from '@mui/icons-material/CancelPresentation';
+import GridViewIcon from '@mui/icons-material/GridView';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import PresentToAllIcon from '@mui/icons-material/PresentToAll';
 import { useCallback } from 'react';
@@ -33,40 +34,20 @@ import { usePowerLevels } from '../../store/api/usePowerLevels';
 import { Toolbar, ToolbarButton, ToolbarToggle } from '../common/Toolbar';
 import { useLayoutState } from '../Layout';
 import { useSvgScaleContext } from '../Whiteboard';
+import { TransitionMenu } from './TransitionMenu';
+import { usePresentationNavigation } from './usePresentationNavigation';
 
 export function PresentBar() {
   const { t } = useTranslation('neoboard');
   const whiteboardInstance = useActiveWhiteboardInstance();
-  const { activeId, isFirstActive, isLastActive } = useActiveSlideOrFrame();
+  const { activeId } = useActiveSlideOrFrame();
   const { isShowGrid, setShowGrid } = useLayoutState();
   const { state, toggleEditMode, togglePresentation } = usePresentationMode();
   const { canStopPresentation } = usePowerLevels();
   const { viewportCanvasCenter } = useSvgScaleContext();
   const slideOrFrameIds = useWhiteboardSlideOrFrameIds();
 
-  const handleToNextSlideClick = useCallback(() => {
-    if (activeId) {
-      const activeIndex = slideOrFrameIds.indexOf(activeId);
-      const newActive = slideOrFrameIds[activeIndex + 1];
-      if (isInfiniteCanvasMode()) {
-        whiteboardInstance.setActiveFrameElementId(newActive);
-      } else {
-        whiteboardInstance.setActiveSlideId(newActive);
-      }
-    }
-  }, [activeId, slideOrFrameIds, whiteboardInstance]);
-
-  const handleToPreviousSlideClick = useCallback(() => {
-    if (activeId) {
-      const activeIndex = slideOrFrameIds.indexOf(activeId);
-      const newActive = slideOrFrameIds[activeIndex - 1];
-      if (isInfiniteCanvasMode()) {
-        whiteboardInstance.setActiveFrameElementId(newActive);
-      } else {
-        whiteboardInstance.setActiveSlideId(newActive);
-      }
-    }
-  }, [activeId, slideOrFrameIds, whiteboardInstance]);
+  const navigation = usePresentationNavigation();
 
   const isPresenting = state.type === 'presenting';
   const isPresentingInEditMode = isPresenting && state.isEditMode;
@@ -126,6 +107,10 @@ export function PresentBar() {
     'End presentation',
   );
 
+  const overviewTitle = navigation.overview
+    ? t('presentBar.closeOverview', 'Close overview')
+    : t('presentBar.showOverview', 'Show all frames');
+
   return (
     <Toolbar
       aria-label={presentBarTitle}
@@ -152,20 +137,23 @@ export function PresentBar() {
           disabled={isInfiniteCanvasMode() && slideOrFrameIds.length === 0}
         />
       )}
+      {state.type === 'idle' &&
+        isInfiniteCanvasMode() &&
+        slideOrFrameIds.length > 0 && <TransitionMenu placement="left" />}
       {state.type === 'presenting' && (
         <>
           <ToolbarButton
             aria-label={presentToolsBarPreviousSlide}
-            disabled={isFirstActive || activeId === undefined}
-            onClick={handleToPreviousSlideClick}
+            disabled={!navigation.canGoPrevious}
+            onClick={navigation.goToPrevious}
             placement="left"
           >
             <ArrowBackIosNewIcon />
           </ToolbarButton>
           <ToolbarButton
             aria-label={presentToolsBarNextSlide}
-            disabled={isLastActive || activeId === undefined}
-            onClick={handleToNextSlideClick}
+            disabled={!navigation.canGoNext}
+            onClick={navigation.goToNext}
             placement="left"
           >
             <ArrowForwardIosIcon />
@@ -178,6 +166,19 @@ export function PresentBar() {
             checkedIcon={<LockOpenIcon />}
             placement="left"
           />
+          {isInfiniteCanvasMode() && (
+            <>
+              <ToolbarToggle
+                inputProps={{ 'aria-label': overviewTitle }}
+                checked={navigation.overview}
+                onClick={navigation.toggleOverview}
+                icon={<GridViewIcon />}
+                checkedIcon={<GridViewIcon />}
+                placement="left"
+              />
+              <TransitionMenu activeFrameId={activeId} placement="left" />
+            </>
+          )}
         </>
       )}
     </Toolbar>

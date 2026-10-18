@@ -60,6 +60,15 @@ export class PresentationManagerImpl implements PresentationManager {
   private isEditMode: boolean = false;
   private isEditModeSubject = new BehaviorSubject(false);
 
+  private overviewSubject = new BehaviorSubject(false);
+
+  /**
+   * Frame that was activated by a catch-up message (see
+   * {@link PresentFrame}). Followers jump to it instead of playing the
+   * transition.
+   */
+  private catchUpFrameId: string | undefined;
+
   constructor(
     private readonly whiteboardInstance: WhiteboardInstance,
     private readonly communicationChannel: CommunicationChannel,
@@ -102,6 +111,8 @@ export class PresentationManagerImpl implements PresentationManager {
                 view: {
                   isEditMode: this.isEditMode,
                   frameId: activeFrameId,
+                  overview: this.overviewSubject.value,
+                  catchUp: true,
                 },
               },
               {
@@ -147,10 +158,18 @@ export class PresentationManagerImpl implements PresentationManager {
 
               this.setEditMode(content.view.isEditMode);
               const frameId = content.view.frameId;
+              if (whiteboardInstance.getActiveFrameElementId() !== frameId) {
+                this.catchUpFrameId = content.view.catchUp
+                  ? frameId
+                  : undefined;
+              }
+              this.overviewSubject.next(content.view.overview === true);
               whiteboardInstance.setActiveFrameElementId(frameId);
             } else {
               this.setCurrentPresenter(undefined);
               this.setEditMode(false);
+              this.overviewSubject.next(false);
+              this.catchUpFrameId = undefined;
               whiteboardInstance.setActiveFrameElementId(undefined);
             }
           }
@@ -194,6 +213,8 @@ export class PresentationManagerImpl implements PresentationManager {
     }
 
     this.setCurrentPresenter(localSessionId);
+    this.catchUpFrameId = undefined;
+    this.overviewSubject.next(false);
 
     if (frameElementId) {
       this.whiteboardInstance.setActiveFrameElementId(frameElementId);
@@ -221,7 +242,13 @@ export class PresentationManagerImpl implements PresentationManager {
         if (isInfiniteCanvasMode()) {
           this.communicationChannel.broadcastMessage<PresentFrame>(
             PRESENT_FRAME_MESSAGE,
-            { view: { isEditMode: false, frameId: slideOrFrameId } },
+            {
+              view: {
+                isEditMode: false,
+                frameId: slideOrFrameId,
+                overview: this.overviewSubject.value,
+              },
+            },
             {
               reliable: true,
             },
@@ -241,6 +268,7 @@ export class PresentationManagerImpl implements PresentationManager {
   stopPresentation(): void {
     this.setCurrentPresenter(undefined);
     this.setEditMode(false);
+    this.overviewSubject.next(false);
 
     if (isInfiniteCanvasMode()) {
       this.whiteboardInstance.setActiveFrameElementId(undefined);
@@ -329,7 +357,13 @@ export class PresentationManagerImpl implements PresentationManager {
       if (isInfiniteCanvasMode()) {
         this.communicationChannel.broadcastMessage<PresentFrame>(
           PRESENT_FRAME_MESSAGE,
-          { view: { isEditMode, frameId: slideOrFrameId } },
+          {
+            view: {
+              isEditMode,
+              frameId: slideOrFrameId,
+              overview: this.overviewSubject.value,
+            },
+          },
           {
             reliable: true,
           },
@@ -346,12 +380,70 @@ export class PresentationManagerImpl implements PresentationManager {
     }
   }
 
+  observeOverview(): Observable<boolean> {
+    return this.overviewSubject.pipe(
+      distinctUntilChanged(),
+      takeUntil(this.destroySubject),
+    );
+  }
+
+  isOverview(): boolean {
+    return this.overviewSubject.value;
+  }
+
+  setOverview(overview: boolean, frameElementId?: string): void {
+    if (!isInfiniteCanvasMode() || !this.isLocalPresenter()) {
+      return;
+    }
+
+    const activeFrameId = this.whiteboardInstance.getActiveFrameElementId();
+    const targetFrameId = frameElementId ?? activeFrameId;
+
+    if (
+      overview === this.overviewSubject.value &&
+      targetFrameId === activeFrameId
+    ) {
+      return;
+    }
+
+    this.overviewSubject.next(overview);
+
+    if (targetFrameId !== undefined && targetFrameId !== activeFrameId) {
+      // the active frame publisher broadcasts the new view
+      this.whiteboardInstance.setActiveFrameElementId(targetFrameId);
+    } else if (activeFrameId) {
+      this.communicationChannel.broadcastMessage<PresentFrame>(
+        PRESENT_FRAME_MESSAGE,
+        {
+          view: {
+            isEditMode: this.isEditMode,
+            frameId: activeFrameId,
+            overview,
+          },
+        },
+        { reliable: true },
+      );
+    }
+  }
+
+  isCatchUpNavigation(frameElementId: string): boolean {
+    return this.catchUpFrameId === frameElementId;
+  }
+
   destroy() {
     this.destroySubject.next();
     this.activeSlidePublisher?.unsubscribe();
     this.activeSlidePublisher = undefined;
     this.currentPresenterSessionId = undefined;
     this.isEditMode = false;
+  }
+
+  private isLocalPresenter(): boolean {
+    return (
+      this.currentPresenterSessionId !== undefined &&
+      this.currentPresenterSessionId ===
+        this.communicationChannel.getStatistics().localSession?.sessionId
+    );
   }
 
   private setCurrentPresenter(presenterSessionId: string | undefined) {

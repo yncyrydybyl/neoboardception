@@ -22,6 +22,12 @@ export type ChangeFn<T extends Record<string, unknown>> = (
   doc: SharedMap<T>,
 ) => void;
 
+/** Options of {@link Document.performChange}. */
+export type PerformChangeOptions = {
+  /** If false, the change is not part of the undo history. Default: true. */
+  undoable?: boolean;
+};
+
 /** Statistics of a document. */
 export type DocumentStatistics = {
   /** Size of the CRDT document in its binary presentation in bytes. */
@@ -50,8 +56,13 @@ export type Document<T extends Record<string, unknown>> = {
    */
   mergeFrom(remoteData: Uint8Array, isUpdated?: boolean): void;
 
-  /** Perform a change on the document. */
-  performChange(callback: ChangeFn<T>): void;
+  /**
+   * Perform a change on the document.
+   *
+   * @param options - `undoable: false` keeps the change out of the undo
+   *                  history (e.g. for settings). Default: undoable.
+   */
+  performChange(callback: ChangeFn<T>, options?: PerformChangeOptions): void;
 
   /** Store the document for a persistence storage. */
   store(): Uint8Array;

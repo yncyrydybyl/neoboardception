@@ -21,13 +21,31 @@ import { Message } from '../connection';
 export const PRESENT_FRAME_MESSAGE = 'net.nordeck.whiteboard.present_frame';
 
 export type PresentFrame = {
-  view: { isEditMode: boolean; frameId: string } | undefined;
+  view:
+    | {
+        isEditMode: boolean;
+        frameId: string;
+        /**
+         * The presenter shows the overview of all frames. Optional, older
+         * clients neither send nor read it.
+         */
+        overview?: boolean;
+        /**
+         * The message repeats the current view for users who joined later.
+         * They jump to the frame instead of playing the transition.
+         * Optional, older clients neither send nor read it.
+         */
+        catchUp?: boolean;
+      }
+    | undefined;
 };
 
 const presentFrameSchema = Joi.object<PresentFrame, true>({
   view: Joi.object({
     isEditMode: Joi.boolean().required(),
     frameId: Joi.string().required(),
+    overview: Joi.boolean(),
+    catchUp: Joi.boolean(),
   }).unknown(),
 }).unknown();
 

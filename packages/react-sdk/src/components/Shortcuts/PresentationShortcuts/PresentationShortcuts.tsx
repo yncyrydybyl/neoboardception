@@ -17,60 +17,54 @@
 import React, { useCallback } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { isInfiniteCanvasMode } from '../../../lib';
-import {
-  useActiveElements,
-  useActiveSlideOrFrame,
-  useActiveWhiteboardInstance,
-  usePresentationMode,
-  useWhiteboardSlideOrFrameIds,
-} from '../../../state';
+import { useActiveElements, usePresentationMode } from '../../../state';
+import { usePresentationNavigation } from '../../PresentBar/usePresentationNavigation';
+import { presentationHotkeys, presentationKeyAction } from './presentationKeys';
 
 export const PresentationShortcuts: React.FC = function () {
   const { state } = usePresentationMode();
-  const { activeId } = useActiveSlideOrFrame();
-  const whiteboardInstance = useActiveWhiteboardInstance();
-  const slideOrFrameIds = useWhiteboardSlideOrFrameIds();
+  const navigation = usePresentationNavigation();
   const { activeElementIds } = useActiveElements();
 
   const handleHotkey = useCallback(
     (event: KeyboardEvent) => {
-      if (activeId === undefined) {
-        return;
-      }
+      const action = presentationKeyAction(
+        event,
+        isInfiniteCanvasMode(),
+        navigation.overview,
+      );
 
-      let newActive: string;
-      if (['ArrowRight', ' '].includes(event.key)) {
-        const activeIndex = slideOrFrameIds.indexOf(activeId);
-
-        if (activeIndex === slideOrFrameIds.length - 1) {
-          // There is now next slide
+      switch (action) {
+        case 'next':
+          navigation.goToNext();
+          break;
+        case 'previous':
+          navigation.goToPrevious();
+          break;
+        case 'first':
+          navigation.goToFirst();
+          break;
+        case 'last':
+          navigation.goToLast();
+          break;
+        case 'toggleOverview':
+          navigation.toggleOverview();
+          break;
+        case 'closeOverview':
+          if (navigation.overview) {
+            navigation.toggleOverview();
+          }
+          break;
+        default:
           return;
-        }
-
-        newActive = slideOrFrameIds[activeIndex + 1];
-      } else if (event.key === 'ArrowLeft') {
-        const activeIndex = slideOrFrameIds.indexOf(activeId);
-
-        if (activeIndex === 0) {
-          // There is no previous slide
-          return;
-        }
-
-        newActive = slideOrFrameIds[activeIndex - 1];
-      } else {
-        return;
       }
 
-      if (isInfiniteCanvasMode()) {
-        whiteboardInstance.setActiveFrameElementId(newActive);
-      } else {
-        whiteboardInstance.setActiveSlideId(newActive);
-      }
+      event.preventDefault();
     },
-    [activeId, whiteboardInstance, slideOrFrameIds],
+    [navigation],
   );
 
-  useHotkeys(['ArrowLeft', 'ArrowRight', 'space'], handleHotkey, {
+  useHotkeys(presentationHotkeys, handleHotkey, {
     enabled: state.type === 'presenting' && activeElementIds.length === 0,
     useKey: true,
   });

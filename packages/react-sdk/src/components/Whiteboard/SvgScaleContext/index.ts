@@ -15,10 +15,12 @@
  */
 
 export { calculatePositionAndScaleForElement } from './calculatePositionAndScaleForElement';
-export { useSvgScaleContext } from './context';
+export { useSvgCameraContext, useSvgScaleContext } from './context';
 export type {
   ContainerDimensions,
+  SvgCameraContextType,
   SvgScaleContextType,
   Translation,
+  ViewportChangeSource,
 } from './context';
 export { SvgScaleContextProvider } from './SvgScaleContextProvider';

@@ -26,6 +26,9 @@ import {
   FrameElement,
   PathElement,
   Point,
+  PresentationSettings,
+  PresentationSpeed,
+  PresentationTransition,
   ShapeElement,
   UpdateElementPatch,
 } from './crdt';
@@ -171,6 +174,23 @@ export type WhiteboardInstance = {
 
   /** Get access to the presentation manager */
   getPresentationManager(): PresentationManager | undefined;
+
+  /** Return the presentation settings (transitions) of the whiteboard. */
+  getPresentationSettings(): PresentationSettings;
+  /** Observe the presentation settings of the whiteboard. */
+  observePresentationSettings(): Observable<PresentationSettings>;
+  /** Set the transition between frames. Not part of the undo history. */
+  setPresentationTransition(transition: PresentationTransition): void;
+  /** Set the playback speed of transitions. Not part of the undo history. */
+  setPresentationSpeed(speed: PresentationSpeed): void;
+  /**
+   * Set the transition used when the presentation moves to a frame.
+   * `undefined` removes the override. Not part of the undo history.
+   */
+  setFrameTransition(
+    frameElementId: string,
+    transition: PresentationTransition | undefined,
+  ): void;
 
   /** Update a managed document to mismatched snapshot and merge. */
   mergeMismatchedSnapshot(): void;
@@ -375,6 +395,24 @@ export type PresentationManager = {
   observePresentationState(): Observable<PresentationState>;
   /** Toggle the edit mode for all other users. */
   toggleEditMode(): void;
+  /** Observe whether the presentation shows the overview of all frames. */
+  observeOverview(): Observable<boolean>;
+  /** Whether the presentation shows the overview of all frames. */
+  isOverview(): boolean;
+  /**
+   * Show or hide the overview of all frames for everyone who follows the
+   * presentation. Only the presenter can do this, only on an infinite
+   * canvas.
+   *
+   * @param frameElementId - if set, the presentation moves to this frame.
+   */
+  setOverview(overview: boolean, frameElementId?: string): void;
+  /**
+   * Whether the frame was activated by a message that repeats the current
+   * view for a user who joined late. Such a user jumps to the frame instead
+   * of playing the transition.
+   */
+  isCatchUpNavigation(frameElementId: string): boolean;
 };
 
 /** The data that is stored in the UndoManager */

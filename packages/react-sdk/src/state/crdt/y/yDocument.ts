@@ -23,6 +23,7 @@ import {
   DocumentStatistics,
   DocumentUndoManager,
   DocumentValidator,
+  PerformChangeOptions,
 } from '../types';
 import { applyMigrations } from './migrations';
 import { SharedMap } from './types';
@@ -32,6 +33,9 @@ import {
   UndoRedoItemValidator,
   YDocumentUndoManager,
 } from './yDocumentUndoManager';
+
+/** Origin of transactions that the undo manager does not track. */
+const NOT_UNDOABLE_ORIGIN = 'net.nordeck.whiteboard.not-undoable';
 
 export class YDocument<
   T extends Record<string, unknown>,
@@ -113,9 +117,13 @@ export class YDocument<
     this.changesSubject.next(this.getRoot());
   }
 
-  performChange(callback: ChangeFn<T>): void {
+  performChange(callback: ChangeFn<T>, options?: PerformChangeOptions): void {
+    // The undo manager only tracks transactions with its own origin.
+    const origin =
+      options?.undoable === false ? NOT_UNDOABLE_ORIGIN : UNDO_MANAGER_SCOPE;
+
     this.applyAndNotifyChanges(() => {
-      this.doc.transact(() => callback(this.getRoot()), UNDO_MANAGER_SCOPE);
+      this.doc.transact(() => callback(this.getRoot()), origin);
     });
   }
 

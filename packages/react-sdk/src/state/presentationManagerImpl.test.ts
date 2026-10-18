@@ -108,6 +108,11 @@ describe('presentationManager', () => {
         .fn()
         .mockImplementation(() => observeActiveFrameElementIdSubject.value),
       getPresentationManager: vi.fn(),
+      getPresentationSettings: vi.fn(),
+      observePresentationSettings: vi.fn(),
+      setPresentationTransition: vi.fn(),
+      setPresentationSpeed: vi.fn(),
+      setFrameTransition: vi.fn(),
       getSlide: vi.fn(),
       getSlideIds: vi.fn(),
       getWhiteboardId: vi.fn(),
@@ -187,7 +192,13 @@ describe('presentationManager', () => {
     ]);
     expect(communicationChannel.broadcastMessage).toHaveBeenCalledWith(
       'net.nordeck.whiteboard.present_frame',
-      { view: { isEditMode: false, frameId: 'frame-0' } },
+      {
+        view: {
+          isEditMode: false,
+          frameId: 'frame-0',
+          overview: false,
+        },
+      },
       {
         reliable: true,
       },
@@ -230,7 +241,13 @@ describe('presentationManager', () => {
     ]);
     expect(communicationChannel.broadcastMessage).toHaveBeenCalledWith(
       'net.nordeck.whiteboard.present_frame',
-      { view: { isEditMode: false, frameId: 'frame-0' } },
+      {
+        view: {
+          isEditMode: false,
+          frameId: 'frame-0',
+          overview: false,
+        },
+      },
       {
         reliable: true,
       },
@@ -767,7 +784,13 @@ describe('presentationManager', () => {
     expect(communicationChannel.broadcastMessage).toHaveBeenNthCalledWith(
       1,
       'net.nordeck.whiteboard.present_frame',
-      { view: { isEditMode: false, frameId: 'frame-0' } },
+      {
+        view: {
+          isEditMode: false,
+          frameId: 'frame-0',
+          overview: false,
+        },
+      },
       {
         reliable: true,
       },
@@ -775,7 +798,13 @@ describe('presentationManager', () => {
     expect(communicationChannel.broadcastMessage).toHaveBeenNthCalledWith(
       2,
       'net.nordeck.whiteboard.present_frame',
-      { view: { isEditMode: false, frameId: 'frame-1' } },
+      {
+        view: {
+          isEditMode: false,
+          frameId: 'frame-1',
+          overview: false,
+        },
+      },
       {
         reliable: true,
       },
@@ -783,7 +812,13 @@ describe('presentationManager', () => {
     expect(communicationChannel.broadcastMessage).toHaveBeenNthCalledWith(
       3,
       'net.nordeck.whiteboard.present_frame',
-      { view: { isEditMode: false, frameId: 'frame-2' } },
+      {
+        view: {
+          isEditMode: false,
+          frameId: 'frame-2',
+          overview: false,
+        },
+      },
       {
         reliable: true,
       },
@@ -865,7 +900,14 @@ describe('presentationManager', () => {
 
     expect(communicationChannel.broadcastMessage).toHaveBeenCalledWith(
       'net.nordeck.whiteboard.present_frame',
-      { view: { isEditMode: false, frameId: 'frame-0' } },
+      {
+        view: {
+          isEditMode: false,
+          frameId: 'frame-0',
+          overview: false,
+          catchUp: true,
+        },
+      },
       {
         reliable: true,
       },
@@ -918,7 +960,14 @@ describe('presentationManager', () => {
 
     expect(communicationChannel.broadcastMessage).toHaveBeenCalledWith(
       'net.nordeck.whiteboard.present_frame',
-      { view: { isEditMode: false, frameId: 'frame-0' } },
+      {
+        view: {
+          isEditMode: false,
+          frameId: 'frame-0',
+          overview: false,
+          catchUp: true,
+        },
+      },
       {
         reliable: true,
       },
@@ -982,7 +1031,13 @@ describe('presentationManager', () => {
     expect(communicationChannel.broadcastMessage).toHaveBeenNthCalledWith(
       1,
       'net.nordeck.whiteboard.present_frame',
-      { view: { isEditMode: false, frameId: 'frame-0' } },
+      {
+        view: {
+          isEditMode: false,
+          frameId: 'frame-0',
+          overview: false,
+        },
+      },
       {
         reliable: true,
       },
@@ -990,7 +1045,13 @@ describe('presentationManager', () => {
     expect(communicationChannel.broadcastMessage).toHaveBeenNthCalledWith(
       2,
       'net.nordeck.whiteboard.present_frame',
-      { view: { isEditMode: false, frameId: 'frame-1' } },
+      {
+        view: {
+          isEditMode: false,
+          frameId: 'frame-1',
+          overview: false,
+        },
+      },
       {
         reliable: true,
       },
@@ -1092,7 +1153,13 @@ describe('presentationManager', () => {
     expect(communicationChannel.broadcastMessage).toHaveBeenNthCalledWith(
       1,
       'net.nordeck.whiteboard.present_frame',
-      { view: { isEditMode: false, frameId: 'frame-0' } },
+      {
+        view: {
+          isEditMode: false,
+          frameId: 'frame-0',
+          overview: false,
+        },
+      },
       {
         reliable: true,
       },
@@ -1100,7 +1167,13 @@ describe('presentationManager', () => {
     expect(communicationChannel.broadcastMessage).toHaveBeenNthCalledWith(
       2,
       'net.nordeck.whiteboard.present_frame',
-      { view: { isEditMode: true, frameId: 'frame-0' } },
+      {
+        view: {
+          isEditMode: true,
+          frameId: 'frame-0',
+          overview: false,
+        },
+      },
       {
         reliable: true,
       },
@@ -1108,7 +1181,13 @@ describe('presentationManager', () => {
     expect(communicationChannel.broadcastMessage).toHaveBeenNthCalledWith(
       3,
       'net.nordeck.whiteboard.present_frame',
-      { view: { isEditMode: false, frameId: 'frame-0' } },
+      {
+        view: {
+          isEditMode: false,
+          frameId: 'frame-0',
+          overview: false,
+        },
+      },
       {
         reliable: true,
       },
@@ -1180,7 +1259,13 @@ describe('presentationManager', () => {
     expect(communicationChannel.broadcastMessage).toHaveBeenNthCalledWith(
       1,
       'net.nordeck.whiteboard.present_frame',
-      { view: { isEditMode: false, frameId: 'frame-0' } },
+      {
+        view: {
+          isEditMode: false,
+          frameId: 'frame-0',
+          overview: false,
+        },
+      },
       {
         reliable: true,
       },
@@ -1188,7 +1273,13 @@ describe('presentationManager', () => {
     expect(communicationChannel.broadcastMessage).toHaveBeenNthCalledWith(
       2,
       'net.nordeck.whiteboard.present_frame',
-      { view: { isEditMode: true, frameId: 'frame-0' } },
+      {
+        view: {
+          isEditMode: true,
+          frameId: 'frame-0',
+          overview: false,
+        },
+      },
       {
         reliable: true,
       },
@@ -1196,7 +1287,13 @@ describe('presentationManager', () => {
     expect(communicationChannel.broadcastMessage).toHaveBeenNthCalledWith(
       3,
       'net.nordeck.whiteboard.present_frame',
-      { view: { isEditMode: false, frameId: 'frame-1' } },
+      {
+        view: {
+          isEditMode: false,
+          frameId: 'frame-1',
+          overview: false,
+        },
+      },
       {
         reliable: true,
       },
@@ -1265,5 +1362,166 @@ describe('presentationManager', () => {
     });
 
     expect(whiteboardInstance.clearUndoManager).not.toHaveBeenCalled();
+  });
+
+  describe('overview and late joiners (infinite canvas)', () => {
+    beforeEach(() => {
+      vi.mocked(getEnvironment).mockImplementation((name, defaultValue) => {
+        switch (name) {
+          case 'REACT_APP_INFINITE_CANVAS':
+            return 'true';
+          case 'REACT_APP_RTC':
+            return 'webrtc';
+          default:
+            return defaultValue;
+        }
+      });
+    });
+
+    const remoteView = (view: object | undefined) =>
+      messageSubject.next({
+        senderUserId: '@user-bob:example.com',
+        senderSessionId: 'session-0',
+        type: 'net.nordeck.whiteboard.present_frame',
+        content: { view },
+      });
+
+    it('should show the overview for everyone', async () => {
+      presentationManager.startPresentation('frame-0');
+      vi.mocked(communicationChannel.broadcastMessage).mockClear();
+      const overview = firstValueFrom(
+        presentationManager.observeOverview().pipe(take(2), toArray()),
+      );
+
+      presentationManager.setOverview(true);
+
+      expect(await overview).toEqual([false, true]);
+      expect(presentationManager.isOverview()).toBe(true);
+      expect(communicationChannel.broadcastMessage).toHaveBeenCalledWith(
+        'net.nordeck.whiteboard.present_frame',
+        { view: { isEditMode: false, frameId: 'frame-0', overview: true } },
+        { reliable: true },
+      );
+    });
+
+    it('should keep the overview while selecting frames', () => {
+      presentationManager.startPresentation('frame-0');
+      presentationManager.setOverview(true);
+      vi.mocked(communicationChannel.broadcastMessage).mockClear();
+
+      whiteboardInstance.setActiveFrameElementId('frame-1');
+
+      expect(communicationChannel.broadcastMessage).toHaveBeenCalledWith(
+        'net.nordeck.whiteboard.present_frame',
+        { view: { isEditMode: false, frameId: 'frame-1', overview: true } },
+        { reliable: true },
+      );
+    });
+
+    it('should close the overview and open a frame with one message', () => {
+      presentationManager.startPresentation('frame-0');
+      presentationManager.setOverview(true);
+      vi.mocked(communicationChannel.broadcastMessage).mockClear();
+
+      presentationManager.setOverview(false, 'frame-2');
+
+      expect(presentationManager.isOverview()).toBe(false);
+      expect(whiteboardInstance.getActiveFrameElementId()).toBe('frame-2');
+      expect(communicationChannel.broadcastMessage).toHaveBeenCalledTimes(1);
+      expect(communicationChannel.broadcastMessage).toHaveBeenCalledWith(
+        'net.nordeck.whiteboard.present_frame',
+        { view: { isEditMode: false, frameId: 'frame-2', overview: false } },
+        { reliable: true },
+      );
+    });
+
+    it('should ignore the overview if not presenting', () => {
+      presentationManager.setOverview(true);
+
+      expect(presentationManager.isOverview()).toBe(false);
+      expect(communicationChannel.broadcastMessage).not.toHaveBeenCalled();
+    });
+
+    it('should end the overview with the presentation', () => {
+      presentationManager.startPresentation('frame-0');
+      presentationManager.setOverview(true);
+
+      presentationManager.stopPresentation();
+
+      expect(presentationManager.isOverview()).toBe(false);
+    });
+
+    it('should follow the overview of the presenter', () => {
+      remoteView({ isEditMode: false, frameId: 'frame-1', overview: true });
+
+      expect(presentationManager.isOverview()).toBe(true);
+      expect(whiteboardInstance.setActiveFrameElementId).toHaveBeenCalledWith(
+        'frame-1',
+      );
+
+      // older presenters do not send the flag
+      remoteView({ isEditMode: false, frameId: 'frame-1' });
+      expect(presentationManager.isOverview()).toBe(false);
+
+      remoteView({ isEditMode: false, frameId: 'frame-1', overview: true });
+      remoteView(undefined);
+      expect(presentationManager.isOverview()).toBe(false);
+    });
+
+    it('should mark the frame of a catch-up message for a late joiner', () => {
+      remoteView({ isEditMode: false, frameId: 'frame-2', catchUp: true });
+
+      expect(presentationManager.isCatchUpNavigation('frame-2')).toBe(true);
+
+      // the next navigation of the presenter plays the transition
+      remoteView({ isEditMode: false, frameId: 'frame-3' });
+      expect(presentationManager.isCatchUpNavigation('frame-2')).toBe(false);
+      expect(presentationManager.isCatchUpNavigation('frame-3')).toBe(false);
+    });
+
+    it('should not mark a catch-up message for the frame that is already shown', () => {
+      remoteView({ isEditMode: false, frameId: 'frame-2' });
+
+      remoteView({ isEditMode: false, frameId: 'frame-2', catchUp: true });
+
+      expect(presentationManager.isCatchUpNavigation('frame-2')).toBe(false);
+    });
+
+    it('should send catch-up messages to new peers', () => {
+      communicationStatistics = {
+        localSession: { sessionId: 'own' },
+        peerConnections: {},
+        sessions: {},
+      };
+      presentationManager.startPresentation('frame-0');
+      presentationManager.setOverview(true);
+      vi.mocked(communicationChannel.broadcastMessage).mockClear();
+
+      communicationStatistics = {
+        localSession: { sessionId: 'own' },
+        peerConnections: {
+          'peer-0': mockPeerConnectionStatistics(
+            '@user-bob:example.com',
+            'connected',
+            'session-0',
+          ),
+        },
+        sessions: {},
+      };
+      observeCommunicationStatisticsSubject.next(communicationStatistics);
+
+      expect(communicationChannel.broadcastMessage).toHaveBeenCalledWith(
+        'net.nordeck.whiteboard.present_frame',
+        {
+          view: {
+            isEditMode: false,
+            frameId: 'frame-0',
+            overview: true,
+            catchUp: true,
+          },
+        },
+        { reliable: true },
+      );
+    });
   });
 });

@@ -694,4 +694,170 @@ describe('<PresentBar/>', () => {
       expect(endPresentationButton).not.toBeInTheDocument();
     });
   });
+
+  describe('transitions and overview (infinite canvas)', () => {
+    beforeEach(() => {
+      vi.mocked(getEnvironment).mockImplementation((name, defaultValue) =>
+        name === 'REACT_APP_INFINITE_CANVAS' ? 'true' : defaultValue,
+      );
+    });
+
+    async function startPresentation() {
+      const toolbar = screen.getByRole('toolbar', { name: 'Present' });
+      await userEvent.click(
+        within(toolbar).getByRole('checkbox', {
+          name: 'Start presentation',
+          checked: false,
+        }),
+      );
+      return toolbar;
+    }
+
+    it('should not offer transitions without frames', () => {
+      render(<PresentBar />, { wrapper: Wrapper });
+
+      expect(
+        screen.queryByRole('button', { name: 'Transitions' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('should choose the transition before presenting', async () => {
+      activeSlide.addElement(mockFrameElement());
+      render(<PresentBar />, { wrapper: Wrapper });
+
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Transitions' }),
+      );
+      const menu = screen.getByRole('menu');
+
+      expect(
+        within(menu).getByRole('menuitemradio', { name: /^Fly/ }),
+      ).toHaveAttribute('aria-checked', 'true');
+      expect(
+        within(menu).getByRole('menuitemradio', { name: 'Normal' }),
+      ).toHaveAttribute('aria-checked', 'true');
+      // no frame is shown: no per frame setting
+      expect(
+        within(menu).queryByText('Into this frame'),
+      ).not.toBeInTheDocument();
+
+      await userEvent.click(
+        within(menu).getByRole('menuitemradio', { name: /^Slide/ }),
+      );
+      await userEvent.click(
+        within(menu).getByRole('menuitemradio', { name: 'Fast' }),
+      );
+
+      expect(activeWhiteboardInstance.getPresentationSettings()).toEqual({
+        transition: 'slide',
+        speed: 'fast',
+        frameTransitions: {},
+      });
+      expect(
+        within(menu).getByRole('menuitemradio', { name: /^Slide/ }),
+      ).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('should set the transition into the current frame', async () => {
+      const frameId0 = activeSlide.addElement(mockFrameElement());
+      activeSlide.addElement(mockFrameElement());
+      render(<PresentBar />, { wrapper: Wrapper });
+      const toolbar = await startPresentation();
+
+      await userEvent.click(
+        within(toolbar).getByRole('button', { name: 'Transitions' }),
+      );
+      const menu = screen.getByRole('menu');
+      expect(
+        within(menu).getByRole('menuitemradio', { name: 'Like all frames' }),
+      ).toHaveAttribute('aria-checked', 'true');
+
+      // the second "Zoom" entry belongs to "Into this frame"
+      const zoomItems = within(menu).getAllByRole('menuitemradio', {
+        name: /^Zoom/,
+      });
+      expect(zoomItems).toHaveLength(2);
+      await userEvent.click(zoomItems[1]);
+
+      expect(
+        activeWhiteboardInstance.getPresentationSettings().frameTransitions,
+      ).toEqual({ [frameId0]: 'zoom' });
+
+      await userEvent.click(
+        within(menu).getByRole('menuitemradio', { name: 'Like all frames' }),
+      );
+      expect(
+        activeWhiteboardInstance.getPresentationSettings().frameTransitions,
+      ).toEqual({});
+    });
+
+    it('should show and close the overview', async () => {
+      const frameId0 = activeSlide.addElement(mockFrameElement());
+      activeSlide.addElement(mockFrameElement());
+      render(<PresentBar />, { wrapper: Wrapper });
+      const toolbar = await startPresentation();
+      const presentationManager =
+        activeWhiteboardInstance.getPresentationManager()!;
+
+      await userEvent.click(
+        within(toolbar).getByRole('checkbox', {
+          name: 'Show all frames',
+          checked: false,
+        }),
+      );
+
+      expect(presentationManager.isOverview()).toBe(true);
+      expect(
+        within(toolbar).getByRole('checkbox', {
+          name: 'Close overview',
+          checked: true,
+        }),
+      ).toBeInTheDocument();
+
+      // the next frame is only selected in the overview
+      await userEvent.click(
+        within(toolbar).getByRole('button', { name: 'Next frame' }),
+      );
+      expect(presentationManager.isOverview()).toBe(true);
+      expect(activeWhiteboardInstance.getActiveFrameElementId()).not.toBe(
+        frameId0,
+      );
+
+      await userEvent.click(
+        within(toolbar).getByRole('checkbox', { name: 'Close overview' }),
+      );
+      expect(presentationManager.isOverview()).toBe(false);
+    });
+
+    it('should not show the overview button in the slide mode', async () => {
+      vi.mocked(getEnvironment).mockImplementation((name, defaultValue) =>
+        name === 'REACT_APP_INFINITE_CANVAS' ? 'false' : defaultValue,
+      );
+      render(<PresentBar />, { wrapper: Wrapper });
+      const toolbar = await startPresentation();
+
+      expect(
+        within(toolbar).queryByRole('checkbox', { name: 'Show all frames' }),
+      ).not.toBeInTheDocument();
+      expect(
+        within(toolbar).queryByRole('button', { name: 'Transitions' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('should have no accessibility violations with the menu open', async () => {
+      activeSlide.addElement(mockFrameElement());
+      const { baseElement } = render(<PresentBar />, { wrapper: Wrapper });
+      const toolbar = await startPresentation();
+      await userEvent.click(
+        within(toolbar).getByRole('button', { name: 'Transitions' }),
+      );
+
+      await act(async () => {
+        expect(
+          // the menu is rendered in a portal outside of any landmark
+          await axe.run(baseElement, { rules: { region: { enabled: false } } }),
+        ).toHaveNoViolations();
+      });
+    });
+  });
 });

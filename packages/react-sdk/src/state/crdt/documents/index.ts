@@ -87,6 +87,22 @@ export {
   rotatePoint,
 } from './point';
 export type { BoundingRect, Point } from './point';
+export {
+  defaultPresentationSettings,
+  generateSetFrameTransition,
+  generateSetPresentationSpeed,
+  generateSetPresentationTransition,
+  getPresentationSettings,
+  isPresentationSpeed,
+  isPresentationTransition,
+  presentationSpeeds,
+  presentationTransitions,
+} from './presentation';
+export type {
+  PresentationSettings,
+  PresentationSpeed,
+  PresentationTransition,
+} from './presentation';
 export { getInfiniteCanvasElements } from './updates';
 export {
   WhiteboardDocumentVersion,

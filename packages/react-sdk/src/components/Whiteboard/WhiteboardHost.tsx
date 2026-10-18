@@ -56,6 +56,7 @@ import {
 import { DragSelect } from './ElementBehaviors/Selection/DragSelect';
 import { DotGrid } from './Grid';
 import { PinchZoomHandler } from './PinchZoomHandler';
+import { PresentationOverviewLayer } from './Presentation/PresentationOverviewLayer';
 import { SlideSkeleton } from './SlideSkeleton';
 import { SvgCanvas } from './SvgCanvas';
 
@@ -208,6 +209,8 @@ const WhiteboardHost = ({
           )}
 
           {isShowCollaboratorsCursors && !hideCursors && <CursorRenderer />}
+
+          {infiniteCanvasMode && <PresentationOverviewLayer />}
         </ChildrenWrapper>
       </SvgCanvas>
     </Box>

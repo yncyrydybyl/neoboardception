@@ -15,7 +15,10 @@
  */
 
 import { useContext, useEffect, useRef, useState } from 'react';
-import { SvgScaleContext } from '../components/Whiteboard/SvgScaleContext/context';
+import {
+  SvgCameraContext,
+  SvgScaleContext,
+} from '../components/Whiteboard/SvgScaleContext/context';
 import { infiniteCanvasMode } from '../components/Whiteboard/constants';
 import { BoundingRect, Point } from '../state';
 
@@ -60,6 +63,13 @@ export function intersectsRect(a: BoundingRect, b: BoundingRect): boolean {
  * visible canvas and whether a pan/zoom gesture is in progress (any viewport
  * change within the last {@link gestureEndDelayMs} ms).
  *
+ * Presentation transitions are not gestures: while the camera flies
+ * (`cameraMoving`) the element counts as gesturing for exactly the duration
+ * of the flight, and the camera's final viewport change does not start the
+ * gesture delay. So a widget is hidden once per flight and shown again
+ * right when the camera arrives, without flicker; fades and slides do not
+ * hide it at all.
+ *
  * Outside of an infinite canvas (slides mode) the whole slide is visible and
  * the viewport does not change by gestures.
  */
@@ -73,6 +83,8 @@ export function useEmbeddedWidgetViewport(elementRect: BoundingRect): {
 
   const scale = scaleContext?.scale;
   const center = scaleContext?.viewportCanvasCenter;
+  const { cameraMoving } = useContext(SvgCameraContext);
+  const cameraChange = scaleContext?.viewportChangeSource === 'camera';
   const containerWidth = scaleContext?.containerDimensions.width ?? 0;
   const containerHeight = scaleContext?.containerDimensions.height ?? 0;
   const enabled = infiniteCanvasMode && scaleContext !== undefined;
@@ -86,11 +98,16 @@ export function useEmbeddedWidgetViewport(elementRect: BoundingRect): {
       firstRef.current = false;
       return;
     }
+    // presentation transitions are handled by `cameraMoving`
+    if (cameraChange) {
+      setGesturing(false);
+      return;
+    }
 
     setGesturing(true);
     const timer = setTimeout(() => setGesturing(false), gestureEndDelayMs);
     return () => clearTimeout(timer);
-  }, [enabled, scale, center?.x, center?.y]);
+  }, [enabled, scale, center?.x, center?.y, cameraChange]);
 
   if (!enabled || scale === undefined || center === undefined) {
     return { visible: true, gesturing: false };
@@ -105,6 +122,6 @@ export function useEmbeddedWidgetViewport(elementRect: BoundingRect): {
 
   return {
     visible: visibleRect ? intersectsRect(elementRect, visibleRect) : true,
-    gesturing,
+    gesturing: gesturing || cameraMoving,
   };
 }

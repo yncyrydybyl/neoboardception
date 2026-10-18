@@ -25,20 +25,14 @@ import React, {
   useMemo,
   useRef,
 } from 'react';
-import {
-  Point,
-  useActiveSlideOrFrame,
-  useWhiteboardSlideInstance,
-} from '../../../state';
+import { Point } from '../../../state';
 import {
   infiniteCanvasMode,
   whiteboardHeight,
   whiteboardWidth,
 } from '../constants';
-import {
-  calculatePositionAndScaleForElement,
-  useSvgScaleContext,
-} from '../SvgScaleContext';
+import { usePresentationCamera } from '../Presentation/usePresentationCamera';
+import { useSvgCameraContext, useSvgScaleContext } from '../SvgScaleContext';
 import { SvgCanvasContext, SvgCanvasContextType } from './context';
 import { useArrowKeys } from './useArrowKeys';
 import { useMeasure } from './useMeasure';
@@ -99,15 +93,8 @@ export const SvgCanvas = function ({
 }: SvgCanvasProps) {
   const [sizeRef, { width, height }] = useMeasure<HTMLDivElement>();
   const svgRef = useRef<SVGSVGElement>(null);
-  const slideInstance = useWhiteboardSlideInstance();
-  const {
-    scale,
-    translation,
-    setContainerDimensions,
-    moveToPositionAndScale,
-    containerDimensions,
-  } = useSvgScaleContext();
-  const { activeId: activeSlideOrFrameId } = useActiveSlideOrFrame();
+  const { scale, translation, setContainerDimensions } = useSvgScaleContext();
+  const { cameraMoving } = useSvgCameraContext();
   const { handleWheelZoom, wheelZoomInProgress } = useWheelZoom(svgRef);
   const { handleKeyDown, handleKeyUp } = useArrowKeys();
 
@@ -164,25 +151,9 @@ export const SvgCanvas = function ({
     }
   }, [svgRef, preview]);
 
-  useEffect(() => {
-    // Translate and scale to active frame when active frame changes
-    if (infiniteCanvasMode && activeSlideOrFrameId) {
-      const frameElement =
-        slideInstance.getFrameElements()[activeSlideOrFrameId];
-      if (frameElement) {
-        const { position, scale } = calculatePositionAndScaleForElement(
-          frameElement,
-          containerDimensions,
-        );
-        moveToPositionAndScale(position, scale);
-      }
-    }
-  }, [
-    slideInstance,
-    activeSlideOrFrameId,
-    moveToPositionAndScale,
-    containerDimensions,
-  ]);
+  // Move the viewport to the active frame (or the presentation overview),
+  // with the presentation transition while presenting.
+  usePresentationCamera(svgRef, infiniteCanvasMode && !preview);
 
   // Handle auxiliary mouse button clicks (middle/right click)
   // To prevent default paste clipboard action on firefox
@@ -261,7 +232,7 @@ export const SvgCanvas = function ({
         >
           {children}
         </Canvas>
-        {!wheelZoomInProgress && additionalChildren}
+        {!wheelZoomInProgress && !cameraMoving && additionalChildren}
       </CanvasWrapper>
       {topLevelChildren}
     </SvgCanvasContext.Provider>

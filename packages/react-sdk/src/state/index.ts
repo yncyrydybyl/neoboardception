@@ -47,6 +47,10 @@ export type { ActiveWhiteboardMember } from './useActiveWhiteboardMembers';
 export { useOwnedWhiteboard } from './useOwnedWhiteboard';
 export { usePresentationMode } from './usePresentationMode';
 export {
+  usePresentationOverview,
+  usePresentationSettings,
+} from './usePresentationSettings';
+export {
   WhiteboardManagerProvider,
   useWhiteboardManager,
 } from './useWhiteboardManager';

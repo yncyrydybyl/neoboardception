@@ -48,6 +48,9 @@ import {
 } from './communication';
 import { emptyCommunicationChannelStatistics } from './communication/types';
 import {
+  PresentationSettings,
+  PresentationSpeed,
+  PresentationTransition,
   WhiteboardDocument,
   WhiteboardDocumentVersion,
   createWhiteboardDocument,
@@ -55,9 +58,13 @@ import {
   generateDuplicateSlide,
   generateMoveSlide,
   generateRemoveSlide,
+  generateSetFrameTransition,
+  generateSetPresentationSpeed,
+  generateSetPresentationTransition,
   generateUpdate,
   getInfiniteCanvasElements,
   getNormalizedSlideIds,
+  getPresentationSettings,
   getSlide,
   isValidWhiteboardDocument,
   isValidWhiteboardDocumentSnapshot,
@@ -637,6 +644,50 @@ export class WhiteboardInstanceImpl implements WhiteboardInstance {
 
   getPresentationManager(): PresentationManager | undefined {
     return this.presentationManager;
+  }
+
+  getPresentationSettings(): PresentationSettings {
+    return getPresentationSettings(
+      this.synchronizedDocument.getDocument().getData(),
+    );
+  }
+
+  observePresentationSettings(): Observable<PresentationSettings> {
+    return concat(
+      defer(() => of(this.synchronizedDocument.getDocument().getData())),
+      this.synchronizedDocument.getDocument().observeChanges(),
+    ).pipe(
+      map(getPresentationSettings),
+      distinctUntilChanged<PresentationSettings>(isEqual),
+      takeUntil(this.destroySubject),
+    );
+  }
+
+  setPresentationTransition(transition: PresentationTransition): void {
+    this.synchronizedDocument
+      .getDocument()
+      .performChange(generateSetPresentationTransition(transition), {
+        undoable: false,
+      });
+  }
+
+  setPresentationSpeed(speed: PresentationSpeed): void {
+    this.synchronizedDocument
+      .getDocument()
+      .performChange(generateSetPresentationSpeed(speed), {
+        undoable: false,
+      });
+  }
+
+  setFrameTransition(
+    frameElementId: string,
+    transition: PresentationTransition | undefined,
+  ): void {
+    this.synchronizedDocument
+      .getDocument()
+      .performChange(generateSetFrameTransition(frameElementId, transition), {
+        undoable: false,
+      });
   }
 
   mergeMismatchedSnapshot(): void {
