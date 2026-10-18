@@ -41,6 +41,23 @@ import {
 } from './renderer';
 import { createOriginAllowListPolicy } from './urlPolicy';
 
+// Lets a test take the element out of the visible part of the canvas.
+const viewportOverride = vi.hoisted(() => ({
+  current: undefined as { visible: boolean; gesturing: boolean } | undefined,
+}));
+vi.mock('./viewport', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./viewport')>();
+  return {
+    ...original,
+    useEmbeddedWidgetViewport: (
+      ...args: Parameters<typeof original.useEmbeddedWidgetViewport>
+    ) => {
+      const result = original.useEmbeddedWidgetViewport(...args);
+      return viewportOverride.current ?? result;
+    },
+  };
+});
+
 const allowWidgets = createOriginAllowListPolicy([
   'https://widgets.example.org',
 ]);
@@ -498,6 +515,94 @@ describe('<EmbeddedWidgetDisplay />', () => {
     fireEvent.pointerDown(document.body);
     expect(mount).toHaveStyle({ pointerEvents: 'none' });
     expect(renderer).toHaveBeenCalledTimes(1);
+  });
+
+  describe('widget in fullscreen', () => {
+    function setFullscreenElement(element: Element | null) {
+      act(() => {
+        // mocked Fullscreen API: the element the browser reports
+        Reflect.set(document, 'fullscreenElement', element);
+        document.dispatchEvent(new Event('fullscreenchange'));
+      });
+    }
+
+    afterEach(() => {
+      viewportOverride.current = undefined;
+      // mocked Fullscreen API: the element the browser reports
+      Reflect.set(document, 'fullscreenElement', null);
+    });
+
+    it('should keep a fullscreen widget visible, running and interactive while the board camera moves away', () => {
+      const wrapper = createWrapper({ renderer, isUrlAllowed: allowWidgets });
+      const { rerender } = renderDisplay(wrapper);
+      fireEvent.click(screen.getByRole('button', { name: 'Load widget' }));
+      act(() => lastProps?.onStatusChange({ state: 'ready' }));
+      const mount = screen.getByTestId(
+        'element-element-0-embedded-widget-mount',
+      );
+
+      // the widget requested fullscreen inside its iframe
+      setFullscreenElement(screen.getByTitle('inner widget'));
+      expect(mount).toHaveAttribute('data-fullscreen', 'true');
+      expect(mount).toHaveStyle({
+        pointerEvents: 'auto',
+        visibility: 'visible',
+      });
+
+      // the element leaves the visible part of the canvas (e.g. a presenter
+      // moves on), and the user clicks the fullscreen backdrop
+      viewportOverride.current = { visible: false, gesturing: true };
+      rerender(
+        <EmbeddedWidgetDisplay
+          elementId="element-0"
+          {...shell}
+          active={false}
+          readOnly={false}
+        />,
+      );
+      fireEvent.pointerDown(document.body);
+      expect(mount).toHaveStyle({
+        pointerEvents: 'auto',
+        visibility: 'visible',
+      });
+      expect(updateWidget).toHaveBeenLastCalledWith({
+        visible: true,
+        gesturing: false,
+        interactive: true,
+      });
+      expect(
+        screen.getByTestId('element-element-0-embedded-widget-content'),
+      ).toHaveAttribute('data-live-state', 'interacting');
+
+      // fullscreen ends: the viewport decides again
+      setFullscreenElement(null);
+      expect(mount).not.toHaveAttribute('data-fullscreen');
+      expect(mount).toHaveStyle({
+        pointerEvents: 'none',
+        visibility: 'hidden',
+      });
+      expect(updateWidget).toHaveBeenLastCalledWith({
+        visible: false,
+        gesturing: true,
+        interactive: false,
+      });
+      expect(renderer).toHaveBeenCalledTimes(1);
+    });
+
+    it('should ignore fullscreen of something else', () => {
+      renderDisplay(createWrapper({ renderer, isUrlAllowed: allowWidgets }));
+      fireEvent.click(screen.getByRole('button', { name: 'Load widget' }));
+      const mount = screen.getByTestId(
+        'element-element-0-embedded-widget-mount',
+      );
+
+      setFullscreenElement(document.body);
+      expect(mount).not.toHaveAttribute('data-fullscreen');
+      expect(mount).toHaveStyle({ pointerEvents: 'none' });
+      // the fullscreen API mock of the board sets a plain object
+      setFullscreenElement({} as Element);
+      expect(mount).not.toHaveAttribute('data-fullscreen');
+    });
   });
 
   it('should unmount the widget on unmount of the element', () => {

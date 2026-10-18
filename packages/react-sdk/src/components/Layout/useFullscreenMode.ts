@@ -16,6 +16,7 @@
 
 import loglevel from 'loglevel';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { isEmbeddedWidgetFullscreenElement } from '../../embeddedWidget/fullscreen';
 
 type UseFullscreenModeResult = {
   /**
@@ -43,7 +44,8 @@ export function useFullscreenMode(): UseFullscreenModeResult {
    */
   const isFullscreenRequestRunning = useRef(false);
   const [isFullscreenMode, setFullscreenModeState] = useState(
-    document.fullscreenElement !== null,
+    document.fullscreenElement !== null &&
+      !isEmbeddedWidgetFullscreenElement(document.fullscreenElement),
   );
 
   const setFullscreenMode = useCallback(async (value: boolean) => {
@@ -75,6 +77,12 @@ export function useFullscreenMode(): UseFullscreenModeResult {
 
   useEffect(() => {
     function listener() {
+      // An embedded widget in fullscreen (e.g. a board in the board) is not
+      // the board's own fullscreen mode: keep the board's mode and layout as
+      // they are below the widget.
+      if (isEmbeddedWidgetFullscreenElement(document.fullscreenElement)) {
+        return;
+      }
       setFullscreenModeState(document.fullscreenElement !== null);
     }
 

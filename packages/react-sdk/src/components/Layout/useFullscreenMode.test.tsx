@@ -68,4 +68,51 @@ describe('useFullscreenMode', () => {
       expect(result.current.isFullscreenMode).toBe(false);
     },
   );
+  it('should not switch to fullscreen mode if an embedded widget goes fullscreen', () => {
+    const mount = document.createElement('div');
+    mount.setAttribute('data-embedded-widget-mount', '');
+    const iframe = document.createElement('iframe');
+    mount.appendChild(iframe);
+    document.body.appendChild(mount);
+    const { result } = renderHook(() => useFullscreenMode(), {
+      wrapper: Wrapper,
+    });
+
+    // the widget's iframe becomes the fullscreen element of the board
+    act(() => {
+      // mocked Fullscreen API: the element the browser reports
+      Reflect.set(document, 'fullscreenElement', iframe);
+      document.dispatchEvent(new Event('fullscreenchange'));
+    });
+    expect(result.current.isFullscreenMode).toBe(false);
+
+    act(() => {
+      // mocked Fullscreen API: the element the browser reports
+      Reflect.set(document, 'fullscreenElement', null);
+      document.dispatchEvent(new Event('fullscreenchange'));
+    });
+    expect(result.current.isFullscreenMode).toBe(false);
+    mount.remove();
+  });
+
+  it('should stay in fullscreen mode while an embedded widget is fullscreen on top', async () => {
+    const mount = document.createElement('div');
+    mount.setAttribute('data-embedded-widget-mount', '');
+    const iframe = document.createElement('iframe');
+    mount.appendChild(iframe);
+    document.body.appendChild(mount);
+    const { result } = renderHook(() => useFullscreenMode(), {
+      wrapper: Wrapper,
+    });
+    await act(() => result.current.setFullscreenMode(true));
+    expect(result.current.isFullscreenMode).toBe(true);
+
+    act(() => {
+      // mocked Fullscreen API: the element the browser reports
+      Reflect.set(document, 'fullscreenElement', iframe);
+      document.dispatchEvent(new Event('fullscreenchange'));
+    });
+    expect(result.current.isFullscreenMode).toBe(true);
+    mount.remove();
+  });
 });

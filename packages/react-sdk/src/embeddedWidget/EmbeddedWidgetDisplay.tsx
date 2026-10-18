@@ -43,6 +43,7 @@ import {
   EmbeddedWidgetLiveState,
   EmbeddedWidgetStatusBar,
 } from './EmbeddedWidgetStatusBar';
+import { useIsFullscreenWithin } from './fullscreen';
 import {
   EmbeddedWidgetModal,
   EmbeddedWidgetMountHandle,
@@ -155,14 +156,21 @@ function EmbeddedWidgetDisplay({
   const urlChangedWhileLive =
     listedLive && liveUrl !== undefined && liveUrl !== widgetUrl;
   const isLive = canActivate && listedLive && !urlChangedWhileLive;
-  const interactive = isLive && interactingElementId === elementId;
+  // The widget went fullscreen inside its iframe: the user sees and uses only
+  // the widget, wherever the board's camera is (also while a presenter moves
+  // it), so it stays visible, running and interactive until fullscreen ends.
+  const fullscreen = useIsFullscreenWithin(isLive ? container : null);
+  const interactive =
+    isLive && (interactingElementId === elementId || fullscreen);
 
-  const { visible, gesturing } = useEmbeddedWidgetViewport({
+  const viewport = useEmbeddedWidgetViewport({
     offsetX: position.x,
     offsetY: position.y,
     width,
     height,
   });
+  const visible = viewport.visible || fullscreen;
+  const gesturing = viewport.gesturing && !fullscreen;
   const viewState = useMemo<EmbeddedWidgetViewState>(
     () => ({ visible, gesturing, interactive }),
     [visible, gesturing, interactive],
@@ -484,6 +492,7 @@ function EmbeddedWidgetDisplay({
               ref={setContainer}
               data-testid={`element-${elementId}-embedded-widget-mount`}
               data-embedded-widget-mount=""
+              data-fullscreen={fullscreen ? 'true' : undefined}
               style={{
                 position: 'absolute',
                 inset: 0,
