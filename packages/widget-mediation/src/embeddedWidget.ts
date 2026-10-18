@@ -427,6 +427,15 @@ class EmbeddedWidget implements EmbeddedWidgetHandle, HubMember, DriverHost {
     );
     // An opaque (sandboxed) origin can only be addressed with '*'.
     if (!sameOrigin) client.transport.targetOrigin = '*';
+    if (this.o.updateState !== 'auto') {
+      // ClientWidgetApi pushes the room state (update_state) to every widget
+      // that announces MSC2762_UPDATE_STATE, whatever the host advertised.
+      // Here readRoomState answers [] (state arrives as send_event), so that
+      // push would be an empty, authoritative "the room has no state".
+      (
+        client as unknown as { pushRoomState: (roomId: string) => void }
+      ).pushRoomState = () => undefined;
+    }
     this.client = client;
     client.setViewedRoomId(this.roomId);
 

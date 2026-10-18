@@ -490,6 +490,7 @@ describe('createMediationRenderer', () => {
       matrixRtc: true,
       mediaPermissions: ['camera', 'microphone'],
       openId: 'forward',
+      updateState: 'auto',
     });
 
     mountOptions!.onMatrixRtcEvent!({ kind: 'joined' });

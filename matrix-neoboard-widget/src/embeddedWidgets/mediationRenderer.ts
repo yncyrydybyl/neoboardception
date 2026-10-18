@@ -366,6 +366,10 @@ export function createMediationRenderer({
         modals,
         ...(modals === 'inline' && { onModalRequest }),
         openId: widgetPolicy.identityApproved ? 'forward' : 'deny',
+        // Room state as MSC2762 update_state for widgets that announce it
+        // (raw matrix-widget-api apps read current state only from it);
+        // toolkit widgets do not announce it and keep getting send_event.
+        updateState: 'auto',
         // Calls: operator opt-in only (policy `matrixrtc`).
         ...(widgetPolicy.matrixRtc && {
           matrixRtc: true,

@@ -737,6 +737,61 @@ describe('forwarding', () => {
     await waitFor(() => m.inner.received_('update_state').length > 0);
   });
 
+  it('pushes no empty room state in never mode, even to widgets that announce update_state', async () => {
+    const outer = makeOuter();
+    outer.handlers['org.matrix.msc2876.read_events'] = () => ({ events: [] });
+    const m = await boot(
+      mount(
+        outer,
+        {},
+        [...POLL_CAPABILITIES],
+        ['0.0.2', 'org.matrix.msc2871', 'org.matrix.msc2762_update_state'],
+      ),
+    );
+    await tick();
+    expect(m.inner.clientVersions).not.toContain(
+      'org.matrix.msc2762_update_state',
+    );
+    expect(m.inner.received_('update_state')).toHaveLength(0);
+  });
+
+  it('pushes the real room state on start in auto mode', async () => {
+    const outer = makeOuter();
+    outer.handlers['org.matrix.msc2876.read_events'] = (data) =>
+      data.type === POLL_STATE
+        ? {
+            events: [
+              {
+                type: POLL_STATE,
+                state_key: 'a',
+                room_id: ROOM,
+                event_id: '$s0',
+                sender: USER,
+                content: {},
+              },
+            ],
+          }
+        : { events: [] };
+    const m = await boot(
+      mount(
+        outer,
+        { updateState: 'auto' },
+        [...POLL_CAPABILITIES],
+        ['0.0.2', 'org.matrix.msc2871', 'org.matrix.msc2762_update_state'],
+      ),
+    );
+    const pushedS0 = () =>
+      m.inner
+        .received_('update_state')
+        .some((x) =>
+          (x.data.state as { event_id: string }[]).some(
+            (e) => e.event_id === '$s0',
+          ),
+        );
+    await waitFor(pushedS0);
+    expect(pushedS0()).toBe(true);
+  });
+
   it('buffers events while paused and delivers them on resume', async () => {
     const outer = makeOuter();
     const m = await boot(mount(outer));
