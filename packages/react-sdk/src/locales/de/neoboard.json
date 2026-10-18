@@ -224,6 +224,11 @@
       "sameOrigin": "Widgets von der Adresse des Boards selbst können nicht eingebettet werden.",
       "timeout": "Das Widget hat nicht rechtzeitig geantwortet."
     },
+    "fullscreen": {
+      "enter": "Vollbild",
+      "enterLabel": "{{name}} im Vollbild anzeigen",
+      "exit": "Vollbild beenden"
+    },
     "leave": "Widget verlassen",
     "leaveHint": "Klicke neben das Widget oder nutze „Widget verlassen“, um zum Board zurückzukehren.",
     "limits": {

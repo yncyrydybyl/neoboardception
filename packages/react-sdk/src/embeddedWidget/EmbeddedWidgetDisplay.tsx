@@ -359,6 +359,18 @@ function EmbeddedWidgetDisplay({
 
   const handleActivate = () => activate(elementId);
   const handleLeave = () => setInteractingElementId(undefined);
+  // One click from the board's status bar: the board puts the widget mount
+  // into fullscreen itself, so this works for any widget and does not need a
+  // double-click into the widget first (or the widget's own controls).
+  const fullscreenEnabled = document.fullscreenEnabled === true;
+  const handleToggleFullscreen = () => {
+    const request = fullscreen
+      ? document.exitFullscreen()
+      : container?.requestFullscreen();
+    request?.catch((error: unknown) => {
+      loglevel.warn('Embedded widget fullscreen failed', elementId, error);
+    });
+  };
   const handleDoubleClick = () => {
     if (isLive) {
       setInteractingElementId(elementId);
@@ -478,6 +490,12 @@ function EmbeddedWidgetDisplay({
             preapproved={preapproved}
             support={support}
             onLeave={handleLeave}
+            fullscreen={fullscreen}
+            onToggleFullscreen={
+              fullscreenEnabled && status?.state === 'ready'
+                ? handleToggleFullscreen
+                : undefined
+            }
           />
         )}
         <div
@@ -488,7 +506,7 @@ function EmbeddedWidgetDisplay({
           }}
         >
           {isLive && (
-            <div
+            <Box
               ref={setContainer}
               data-testid={`element-${elementId}-embedded-widget-mount`}
               data-embedded-widget-mount=""
@@ -498,6 +516,15 @@ function EmbeddedWidgetDisplay({
                 inset: 0,
                 pointerEvents: interactive ? 'auto' : 'none',
                 visibility: hidden ? 'hidden' : 'visible',
+              }}
+              sx={{
+                // The mount itself in fullscreen (status bar button): fill
+                // the screen and cover the board below.
+                '&:fullscreen': {
+                  width: '100%',
+                  height: '100%',
+                  backgroundColor: 'background.paper',
+                },
               }}
             />
           )}

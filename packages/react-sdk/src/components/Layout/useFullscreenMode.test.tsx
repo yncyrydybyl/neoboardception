@@ -86,6 +86,14 @@ describe('useFullscreenMode', () => {
     });
     expect(result.current.isFullscreenMode).toBe(false);
 
+    // the board puts the mount itself into fullscreen (status bar button)
+    act(() => {
+      // mocked Fullscreen API: the element the browser reports
+      Reflect.set(document, 'fullscreenElement', mount);
+      document.dispatchEvent(new Event('fullscreenchange'));
+    });
+    expect(result.current.isFullscreenMode).toBe(false);
+
     act(() => {
       // mocked Fullscreen API: the element the browser reports
       Reflect.set(document, 'fullscreenElement', null);

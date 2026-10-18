@@ -224,6 +224,11 @@
       "sameOrigin": "Widgets from the board’s own address cannot be embedded.",
       "timeout": "The widget did not respond in time."
     },
+    "fullscreen": {
+      "enter": "Fullscreen",
+      "enterLabel": "Show {{name}} in fullscreen",
+      "exit": "Exit fullscreen"
+    },
     "leave": "Leave widget",
     "leaveHint": "Click outside the widget or use “Leave widget” to return to the board.",
     "limits": {

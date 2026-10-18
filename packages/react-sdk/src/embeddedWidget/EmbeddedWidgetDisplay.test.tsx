@@ -603,6 +603,95 @@ describe('<EmbeddedWidgetDisplay />', () => {
       setFullscreenElement({} as Element);
       expect(mount).not.toHaveAttribute('data-fullscreen');
     });
+
+    describe('fullscreen button', () => {
+      afterEach(() => {
+        // mocked Fullscreen API
+        Reflect.deleteProperty(document, 'fullscreenEnabled');
+        Reflect.deleteProperty(document, 'exitFullscreen');
+      });
+
+      function enableFullscreen() {
+        // mocked Fullscreen API
+        Reflect.set(document, 'fullscreenEnabled', true);
+        const exitFullscreen = vi.fn(() => {
+          setFullscreenElement(null);
+          return Promise.resolve();
+        });
+        Reflect.set(document, 'exitFullscreen', exitFullscreen);
+        return { exitFullscreen };
+      }
+
+      function renderReadyWidget() {
+        renderDisplay(createWrapper({ renderer, isUrlAllowed: allowWidgets }));
+        fireEvent.click(screen.getByRole('button', { name: 'Load widget' }));
+        act(() => lastProps?.onStatusChange({ state: 'ready' }));
+        const mount = screen.getByTestId(
+          'element-element-0-embedded-widget-mount',
+        );
+        const requestFullscreen = vi.fn(() => {
+          setFullscreenElement(mount);
+          return Promise.resolve();
+        });
+        mount.requestFullscreen = requestFullscreen;
+        return { mount, requestFullscreen };
+      }
+
+      it('should put the widget mount into fullscreen with one click and leave it again', () => {
+        const { exitFullscreen } = enableFullscreen();
+        const { mount, requestFullscreen } = renderReadyWidget();
+
+        // not interacting: the button works without entering the widget
+        expect(
+          screen.getByTestId('element-element-0-embedded-widget-content'),
+        ).toHaveAttribute('data-live-state', 'ready');
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Show Team poll in fullscreen' }),
+        );
+        expect(requestFullscreen).toHaveBeenCalledTimes(1);
+
+        // the mount itself is the fullscreen element
+        expect(mount).toHaveAttribute('data-fullscreen', 'true');
+        expect(mount).toHaveStyle({
+          pointerEvents: 'auto',
+          visibility: 'visible',
+        });
+        expect(updateWidget).toHaveBeenLastCalledWith({
+          visible: true,
+          gesturing: false,
+          interactive: true,
+        });
+
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Exit fullscreen' }),
+        );
+        expect(exitFullscreen).toHaveBeenCalledTimes(1);
+        expect(mount).not.toHaveAttribute('data-fullscreen');
+        expect(
+          screen.getByRole('button', { name: 'Show Team poll in fullscreen' }),
+        ).toBeInTheDocument();
+        expect(renderer).toHaveBeenCalledTimes(1);
+      });
+
+      it('should hide the button if the browser does not allow fullscreen', () => {
+        Reflect.set(document, 'fullscreenEnabled', false);
+        renderReadyWidget();
+
+        expect(
+          screen.queryByTestId('element-element-0-embedded-widget-fullscreen'),
+        ).not.toBeInTheDocument();
+      });
+
+      it('should hide the button while the widget is not ready', () => {
+        enableFullscreen();
+        renderDisplay(createWrapper({ renderer, isUrlAllowed: allowWidgets }));
+        fireEvent.click(screen.getByRole('button', { name: 'Load widget' }));
+
+        expect(
+          screen.queryByTestId('element-element-0-embedded-widget-fullscreen'),
+        ).not.toBeInTheDocument();
+      });
+    });
   });
 
   it('should unmount the widget on unmount of the element', () => {

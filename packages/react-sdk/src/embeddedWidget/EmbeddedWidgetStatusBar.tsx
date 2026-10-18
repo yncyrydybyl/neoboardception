@@ -16,6 +16,8 @@
 
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
+import FullscreenIcon from '@mui/icons-material/Fullscreen';
+import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import GppMaybeOutlinedIcon from '@mui/icons-material/GppMaybeOutlined';
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import HourglassTopOutlinedIcon from '@mui/icons-material/HourglassTopOutlined';
@@ -65,6 +67,14 @@ export type EmbeddedWidgetStatusBarProps = {
    * presses inside the widget (e.g. Escape) never reach the board.
    */
   onLeave?: () => void;
+  /** The widget (or something inside it) is in fullscreen. */
+  fullscreen?: boolean;
+  /**
+   * Put the widget into fullscreen or leave it. Shown as a button if set
+   * (only where the browser allows fullscreen); it works with a single click,
+   * without entering the widget first.
+   */
+  onToggleFullscreen?: () => void;
 };
 
 /**
@@ -81,6 +91,8 @@ export function EmbeddedWidgetStatusBar({
   preapproved,
   support,
   onLeave,
+  fullscreen = false,
+  onToggleFullscreen,
 }: EmbeddedWidgetStatusBarProps) {
   const { t } = useTranslation('neoboard');
 
@@ -290,6 +302,47 @@ export function EmbeddedWidgetStatusBar({
             {context.text}
           </Typography>
         </Box>
+      )}
+      {onToggleFullscreen && (
+        <Button
+          size="small"
+          variant="contained"
+          color="inherit"
+          startIcon={
+            fullscreen ? (
+              <FullscreenExitIcon aria-hidden />
+            ) : (
+              <FullscreenIcon aria-hidden />
+            )
+          }
+          aria-label={
+            fullscreen
+              ? undefined
+              : t(
+                  'embeddedWidget.fullscreen.enterLabel',
+                  'Show {{name}} in fullscreen',
+                  { name },
+                )
+          }
+          onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
+          onDoubleClick={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleFullscreen();
+          }}
+          data-testid={`element-${elementId}-embedded-widget-fullscreen`}
+          sx={{
+            flexShrink: 0,
+            py: 0,
+            minHeight: 0,
+            lineHeight: 1.5,
+          }}
+        >
+          {fullscreen
+            ? t('embeddedWidget.fullscreen.exit', 'Exit fullscreen')
+            : t('embeddedWidget.fullscreen.enter', 'Fullscreen')}
+        </Button>
       )}
       {state === 'interacting' && onLeave && (
         <Button

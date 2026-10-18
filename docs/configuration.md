@@ -138,7 +138,13 @@ REACT_APP_EMBEDDED_WIDGET_MAX_LIVE=3
   board: `camera`, `microphone`, `display-capture`, `autoplay`,
   `encrypted-media`, `clipboard-write`, `clipboard-read`, `fullscreen`.
   Default none. A board embedded in a board needs `fullscreen` for its own
-  fullscreen mode.
+  fullscreen mode. The "Fullscreen" button in the status bar of every live
+  embedded widget does not need it: the board puts the widget's frame into
+  fullscreen itself, with one click and without entering the widget first
+  ("Exit fullscreen" or Escape ends it). The button is shown only where the
+  browser allows fullscreen. A widget in fullscreen (by this button or by
+  its own fullscreen mode) stays visible and interactive while the board's
+  camera moves elsewhere, e.g. when a presenter goes to the next frame.
 - **`modals`**: what happens when the widget opens a modal dialog (Matrix Poll
   does this to create and edit polls). `inline`: the board shows it in its
   own dialog, limited to what the widget was already granted; the Matrix
