@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { alpha, useTheme } from '@mui/material';
+import { alpha, keyframes, useTheme } from '@mui/material';
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLatestValue } from '../../../lib';
@@ -26,8 +26,13 @@ import {
   useWhiteboardSlideInstance,
   useWhiteboardSlideOrFrameIds,
 } from '../../../state';
-import { useSvgScaleContext } from '../SvgScaleContext';
+import { useSvgCameraContext, useSvgScaleContext } from '../SvgScaleContext';
 import { presentationTargetCamera } from './usePresentationCamera';
+
+const fadeIn = keyframes`
+  from { opacity: 0; }
+  to { opacity: 1; }
+`;
 
 /** Size of the frame number badges in screen pixels. */
 const badgeSize = 34;
@@ -50,8 +55,11 @@ export function PresentationOverviewLayer() {
     useMemo(() => slideInstance.observeFrameElements(), [slideInstance]),
   );
   const { containerDimensions } = useSvgScaleContext();
+  const { cameraMoving } = useSvgCameraContext();
 
-  if (state.type === 'idle' || !overview) {
+  // The outlines are sized for the overview: show them once the camera has
+  // arrived there, not while it still zooms out of a small frame.
+  if (state.type === 'idle' || !overview || cameraMoving) {
     return null;
   }
 
@@ -68,6 +76,7 @@ export function PresentationOverviewLayer() {
     <g
       data-testid="presentation-overview"
       aria-label={t('presentBar.overview', 'Overview of all frames')}
+      style={{ animation: `${fadeIn} 300ms ease-out` }}
     >
       {frameIds.map((frameId, index) => {
         const frame: FrameElement | undefined = frames[frameId];
