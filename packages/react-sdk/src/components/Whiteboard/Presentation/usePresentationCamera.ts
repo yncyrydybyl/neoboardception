@@ -178,6 +178,7 @@ export function usePresentationCamera(
   const previous = useRef<{
     activeId: string | undefined;
     overview: boolean;
+    presentation: boolean;
     width: number;
     height: number;
   }>();
@@ -198,28 +199,33 @@ export function usePresentationCamera(
     );
 
     const prev = previous.current;
-    previous.current = { activeId, overview: showOverview, width, height };
+    previous.current = {
+      activeId,
+      overview: showOverview,
+      presentation: isPresentation,
+      width,
+      height,
+    };
 
     if (!target) {
       return;
     }
 
-    const {
-      frameIds,
-      settings,
-      prefersReducedMotion,
-      isPresentation,
-      translation,
-      scale,
-    } = latest.current;
+    const { frameIds, settings, prefersReducedMotion, translation, scale } =
+      latest.current;
 
     const resized =
       prev !== undefined && (prev.width !== width || prev.height !== height);
     const overviewChanged =
       prev !== undefined && prev.overview !== showOverview;
     const frameChanged = prev !== undefined && prev.activeId !== activeId;
+    // the presentation may start on the frame that is already active (e.g.
+    // selected in the frame list), the view still has to move there
+    const started = prev !== undefined && !prev.presentation && isPresentation;
     const animate =
-      isPresentation && !resized && (overviewChanged || frameChanged);
+      isPresentation &&
+      !resized &&
+      (overviewChanged || frameChanged || started);
 
     const transition = !animate
       ? 'none'
@@ -259,6 +265,7 @@ export function usePresentationCamera(
     enabled,
     activeId,
     showOverview,
+    isPresentation,
     width,
     height,
     slideInstance,

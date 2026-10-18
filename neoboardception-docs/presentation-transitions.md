@@ -134,7 +134,9 @@ that is visible right now.
 
 `usePresentationCamera` (in `components/Whiteboard/Presentation/`) replaces
 the effect that used to move the viewport to the active frame. Outside of a
-presentation, and when the window is resized, it still jumps as before.
+presentation, and when the window is resized, it still jumps as before. When
+a presentation starts, the view always moves to the first shown frame, also
+if that frame was already selected in the frame list before.
 
 - **Fly**: `CameraTransitionPlayer` runs on `requestAnimationFrame` and writes
   the SVG `viewBox` of the canvas directly, without React renders. React's

@@ -41,7 +41,11 @@ import { ElementOverridesProvider } from '../../ElementOverridesProvider';
 import { LayoutStateProvider } from '../../Layout';
 import { WhiteboardHotkeysProvider } from '../../WhiteboardHotkeysProvider';
 import * as constants from '../constants';
-import { SvgScaleContextProvider } from '../SvgScaleContext';
+import {
+  SvgScaleContextProvider,
+  SvgScaleContextType,
+  useSvgScaleContext,
+} from '../SvgScaleContext';
 
 vi.mock('../SvgCanvas/useMeasure', () => ({
   useMeasure: vi.fn().mockReturnValue([vi.fn(), { width: 1920, height: 1080 }]),
@@ -87,6 +91,12 @@ describe('usePresentationCamera', () => {
   let messageSubject: Subject<Message>;
   let activeWhiteboard: WhiteboardInstance;
   let Wrapper: ComponentType<PropsWithChildren<{}>>;
+  let svgScale: SvgScaleContextType;
+
+  function SvgScaleExtractor() {
+    svgScale = useSvgScaleContext();
+    return null;
+  }
 
   const frame0 = { x: 2000, y: 2000, width: 1920, height: 1080 };
   const frame1 = { x: 15000, y: 8000, width: 960, height: 540 };
@@ -151,6 +161,7 @@ describe('usePresentationCamera', () => {
             widgetApi={widgetApi}
           >
             <SvgScaleContextProvider>
+              <SvgScaleExtractor />
               <ElementOverridesProvider>
                 <ConnectionPointProvider>{children}</ConnectionPointProvider>
               </ElementOverridesProvider>
@@ -197,6 +208,27 @@ describe('usePresentationCamera', () => {
     // somewhere on the way, zoomed out further than both frames
     const [, , width] = viewBox();
     expect(width).toBeGreaterThan(frame0.width);
+
+    advance(3000);
+    expect(viewBox()).toEqual(
+      viewBoxOf([frame1.x, frame1.y, frame1.width, frame1.height]),
+    );
+  });
+
+  it('flies to the frame that was already selected when the presentation starts', () => {
+    render(<WhiteboardHost />, { wrapper: Wrapper });
+    // selected in the frame list: jump there, then the user zooms out
+    act(() => activeWhiteboard.setActiveFrameElementId('frame-1'));
+    act(() => svgScale.updateScale(0.2, 'set', { x: 15480, y: 8270 }));
+    const zoomedOut = viewBox();
+    expect(zoomedOut[2]).toBeGreaterThan(frame1.width * 2);
+
+    act(() =>
+      activeWhiteboard.getPresentationManager()!.startPresentation('frame-1'),
+    );
+    advance(200);
+    expect(viewBox()[2]).toBeLessThan(zoomedOut[2]);
+    expect(viewBox()[2]).toBeGreaterThan(frame1.width);
 
     advance(3000);
     expect(viewBox()).toEqual(
