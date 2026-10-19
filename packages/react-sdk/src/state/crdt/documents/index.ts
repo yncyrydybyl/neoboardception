@@ -89,6 +89,7 @@ export {
 export type { BoundingRect, Point } from './point';
 export {
   defaultPresentationSettings,
+  generateClearFrameTransitions,
   generateSetFrameTransition,
   generateSetPresentationSpeed,
   generateSetPresentationTransition,

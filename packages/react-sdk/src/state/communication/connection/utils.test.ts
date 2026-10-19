@@ -15,10 +15,12 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import type { PeerConnectionStatistics } from './types';
 import {
   extractPeerConnectionStatistics,
   isImpolite,
   isPeerConnected,
+  isPeerConnectionAttempting,
 } from './utils';
 
 describe('isImpolite', () => {
@@ -188,4 +190,51 @@ describe('isPeerConnected', () => {
       }),
     ).toBe(false);
   });
+});
+
+describe('isPeerConnectionAttempting', () => {
+  const base: PeerConnectionStatistics = {
+    remoteUserId: '',
+    remoteSessionId: '',
+    impolite: true,
+    packetsReceived: 0,
+    bytesReceived: 0,
+    packetsSent: 0,
+    bytesSent: 0,
+    connectionState: 'new',
+    signalingState: '',
+    iceConnectionState: 'new',
+    iceGatheringState: '',
+  };
+
+  it.each([
+    { connectionState: 'connecting' },
+    { connectionState: 'failed' },
+    { connectionState: 'disconnected' },
+    { connectionState: undefined, iceConnectionState: 'checking' },
+    { connectionState: undefined, iceConnectionState: 'failed' },
+    { connectionState: undefined, iceConnectionState: 'disconnected' },
+  ])(
+    'should detect a connection attempt with %p',
+    (patch: Partial<unknown>) => {
+      expect(isPeerConnectionAttempting({ ...base, ...patch })).toBe(true);
+    },
+  );
+
+  it.each([
+    // the remote session never answered
+    {},
+    { connectionState: 'closed', iceConnectionState: 'closed' },
+    // connected
+    {
+      connectionState: 'connected',
+      iceConnectionState: 'connected',
+      dataChannelState: 'open',
+    },
+  ])(
+    'should not detect a connection attempt with %p',
+    (patch: Partial<unknown>) => {
+      expect(isPeerConnectionAttempting({ ...base, ...patch })).toBe(false);
+    },
+  );
 });

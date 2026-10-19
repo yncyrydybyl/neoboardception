@@ -113,6 +113,7 @@ describe('presentationManager', () => {
       setPresentationTransition: vi.fn(),
       setPresentationSpeed: vi.fn(),
       setFrameTransition: vi.fn(),
+      clearFrameTransitions: vi.fn(),
       getSlide: vi.fn(),
       getSlideIds: vi.fn(),
       getWhiteboardId: vi.fn(),

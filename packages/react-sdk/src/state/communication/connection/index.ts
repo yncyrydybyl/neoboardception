@@ -21,5 +21,5 @@ export type {
   PeerConnection,
   PeerConnectionStatistics,
 } from './types';
-export { isPeerConnected } from './utils';
+export { isPeerConnected, isPeerConnectionAttempting } from './utils';
 export { WebRtcPeerConnection } from './webRtcPeerConnection';

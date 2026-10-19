@@ -16,7 +16,15 @@
 
 import AnimationIcon from '@mui/icons-material/Animation';
 import CheckIcon from '@mui/icons-material/Check';
+import CheckBoxIcon from '@mui/icons-material/CheckBox';
+import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
 import {
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Divider,
   ListItemIcon,
   ListItemText,
@@ -35,8 +43,10 @@ import {
   presentationSpeeds,
   presentationTransitions,
   usePresentationSettings,
+  useWhiteboardSlideOrFrameIds,
 } from '../../state';
 import { ToolbarButton } from '../common/Toolbar';
+import { useReducedMotionPreference } from '../Whiteboard/Presentation/reducedMotion';
 
 export function transitionLabel(
   t: TFunction<'neoboard'>,
@@ -49,8 +59,10 @@ export function transitionLabel(
       return t('presentBar.transition.fade', 'Fade');
     case 'slide':
       return t('presentBar.transition.slide', 'Slide');
+    // stored as `zoom` for compatibility; it scales the view, the camera
+    // does not move
     case 'zoom':
-      return t('presentBar.transition.zoom', 'Zoom');
+      return t('presentBar.transition.zoom', 'Scale');
     case 'none':
       return t('presentBar.transition.none', 'None');
   }
@@ -74,7 +86,10 @@ function transitionDescription(
         'Push the frame aside',
       );
     case 'zoom':
-      return t('presentBar.transition.zoomDescription', 'Dive into the frame');
+      return t(
+        'presentBar.transition.zoomDescription',
+        'Grow and fade into the frame',
+      );
     case 'none':
       return t('presentBar.transition.noneDescription', 'Jump directly');
   }
@@ -113,6 +128,61 @@ function RadioMenuItem({
   );
 }
 
+function UseForAllFramesDialog({
+  open,
+  count,
+  transition,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  count: number;
+  transition: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const { t } = useTranslation('neoboard');
+  const titleId = useId();
+  const descriptionId = useId();
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onCancel}
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+      maxWidth="xs"
+    >
+      <DialogTitle id={titleId}>
+        {t(
+          'presentBar.transition.useForAllTitle',
+          'Use "{{transition}}" for all frames?',
+          { transition },
+        )}
+      </DialogTitle>
+      <DialogContent>
+        <DialogContentText id={descriptionId}>
+          {t('presentBar.transition.useForAllText', {
+            defaultValue_one:
+              'One frame has its own transition. It will be removed for everyone on this board and cannot be restored with undo.',
+            defaultValue:
+              '{{count}} frames have their own transition. They will be removed for everyone on this board and cannot be restored with undo.',
+            count,
+          })}
+        </DialogContentText>
+      </DialogContent>
+      <DialogActions>
+        <Button autoFocus onClick={onCancel}>
+          {t('presentBar.transition.useForAllCancel', 'Cancel')}
+        </Button>
+        <Button variant="contained" onClick={onConfirm}>
+          {t('presentBar.transition.useForAll', 'Use for all frames')}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 export type TransitionMenuProps = {
   /** The frame the presentation shows now; enables the per frame setting. */
   activeFrameId?: string;
@@ -123,15 +193,32 @@ export type TransitionMenuProps = {
  * Menu to choose the transition between frames, its speed and an override
  * for the current frame. The settings are stored in the board, so every
  * viewer sees the same transitions.
+ *
+ * Outside of a presentation the menu tells how many frames have their own
+ * transition and can remove these overrides. If the system of the viewer
+ * asks for reduced motion, it offers to play the transitions anyway on this
+ * device.
  */
 export function TransitionMenu({
   activeFrameId,
   placement = 'left',
 }: TransitionMenuProps) {
   const { t } = useTranslation('neoboard');
-  const { settings, setTransition, setSpeed, setFrameTransition } =
-    usePresentationSettings();
+  const {
+    settings,
+    setTransition,
+    setSpeed,
+    setFrameTransition,
+    clearFrameTransitions,
+  } = usePresentationSettings();
+  const {
+    systemPrefersReducedMotion,
+    ignoreReducedMotion,
+    setIgnoreReducedMotion,
+  } = useReducedMotionPreference();
+  const frameIds = useWhiteboardSlideOrFrameIds();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const open = Boolean(anchorEl);
   const buttonId = useId();
   const menuId = useId();
@@ -145,6 +232,21 @@ export function TransitionMenu({
     activeFrameId !== undefined
       ? settings.frameTransitions[activeFrameId]
       : undefined;
+
+  // overrides of frames that were deleted do not count
+  const overrideCount = frameIds.filter(
+    (id) => settings.frameTransitions[id] !== undefined,
+  ).length;
+
+  const handleUseForAll = useCallback(() => {
+    setAnchorEl(null);
+    setConfirmOpen(true);
+  }, []);
+  const handleConfirmUseForAll = useCallback(() => {
+    clearFrameTransitions();
+    setConfirmOpen(false);
+  }, [clearFrameTransitions]);
+  const handleCancelUseForAll = useCallback(() => setConfirmOpen(false), []);
 
   const title = t('presentBar.transition.title', 'Transitions');
 
@@ -171,7 +273,7 @@ export function TransitionMenu({
         MenuListProps={{
           'aria-labelledby': buttonId,
           dense: true,
-          sx: { minWidth: '240px' },
+          sx: { minWidth: '240px', maxWidth: '320px' },
         }}
       >
         <ListSubheader role="presentation">
@@ -221,7 +323,73 @@ export function TransitionMenu({
             />
           )),
         ]}
+        {activeFrameId === undefined &&
+          overrideCount > 0 && [
+            <Divider key="frames-divider" />,
+            <ListSubheader key="frames-header" role="presentation">
+              {t('presentBar.transition.frames', 'Frames')}
+            </ListSubheader>,
+            <MenuItem key="frames-use-for-all" onClick={handleUseForAll}>
+              <ListItemIcon />
+              <ListItemText
+                primary={t(
+                  'presentBar.transition.useForAll',
+                  'Use for all frames',
+                )}
+                secondary={t('presentBar.transition.frameOverrides', {
+                  defaultValue_one: 'One frame has its own transition',
+                  defaultValue: '{{count}} frames have their own transition',
+                  count: overrideCount,
+                })}
+              />
+            </MenuItem>,
+          ]}
+        {systemPrefersReducedMotion && [
+          <Divider key="motion-divider" />,
+          <ListSubheader key="motion-header" role="presentation">
+            {t('presentBar.reducedMotion.title', 'Reduced motion')}
+          </ListSubheader>,
+          <MenuItem
+            key="motion-ignore"
+            role="menuitemcheckbox"
+            aria-checked={ignoreReducedMotion}
+            onClick={() => setIgnoreReducedMotion(!ignoreReducedMotion)}
+          >
+            <ListItemIcon>
+              {ignoreReducedMotion ? (
+                <CheckBoxIcon fontSize="small" />
+              ) : (
+                <CheckBoxOutlineBlankIcon fontSize="small" />
+              )}
+            </ListItemIcon>
+            <ListItemText
+              primary={t(
+                'presentBar.reducedMotion.playAnyway',
+                'Play transitions anyway (this device)',
+              )}
+              secondary={
+                ignoreReducedMotion
+                  ? t(
+                      'presentBar.reducedMotion.noteIgnored',
+                      'Your system asks for reduced motion, but transitions play as usual on this device.',
+                    )
+                  : t(
+                      'presentBar.reducedMotion.note',
+                      'Your system asks for reduced motion, so transitions play as fades on this device.',
+                    )
+              }
+              secondaryTypographyProps={{ sx: { whiteSpace: 'normal' } }}
+            />
+          </MenuItem>,
+        ]}
       </Menu>
+      <UseForAllFramesDialog
+        open={confirmOpen}
+        count={overrideCount}
+        transition={transitionLabel(t, settings.transition)}
+        onCancel={handleCancelUseForAll}
+        onConfirm={handleConfirmUseForAll}
+      />
     </>
   );
 }

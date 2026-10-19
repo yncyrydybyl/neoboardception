@@ -200,3 +200,26 @@ export function generateSetFrameTransition(
     }
   };
 }
+
+/**
+ * Remove the overrides of all frames, every frame then uses the transition
+ * of the presentation. Also removes overrides of deleted frames and values
+ * that this client does not understand.
+ */
+export function generateClearFrameTransitions(): ChangeFn<WhiteboardDocument> {
+  return (doc) => {
+    const map = getPresentationMap(doc);
+
+    if (!map) {
+      return;
+    }
+
+    const keys: string[] = [];
+    map.forEach((_value, key) => {
+      if (key.startsWith(frameKeyPrefix)) {
+        keys.push(key);
+      }
+    });
+    keys.forEach((key) => map.delete(key));
+  };
+}

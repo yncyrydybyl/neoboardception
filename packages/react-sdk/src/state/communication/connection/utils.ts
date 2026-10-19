@@ -75,3 +75,29 @@ export function isPeerConnected(
     dataChannelOpen && peerConnectionStatistics.connectionState === 'connected'
   );
 }
+
+/**
+ * Whether the peers found each other but the connection is not (or no
+ * longer) up: ICE checks run or failed. A peer that never answered (e.g. a
+ * session that was not cleaned up) stays in the `new` state and does not
+ * count. If such a connection does not come up for a while, the network
+ * between the devices probably needs a relay (TURN) server.
+ */
+export function isPeerConnectionAttempting(
+  peerConnectionStatistics: PeerConnectionStatistics,
+): boolean {
+  if (isPeerConnected(peerConnectionStatistics)) {
+    return false;
+  }
+
+  const { connectionState, iceConnectionState } = peerConnectionStatistics;
+
+  return (
+    connectionState === 'connecting' ||
+    connectionState === 'failed' ||
+    connectionState === 'disconnected' ||
+    iceConnectionState === 'checking' ||
+    iceConnectionState === 'failed' ||
+    iceConnectionState === 'disconnected'
+  );
+}

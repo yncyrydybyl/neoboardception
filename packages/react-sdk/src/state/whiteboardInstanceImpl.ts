@@ -55,6 +55,7 @@ import {
   WhiteboardDocumentVersion,
   createWhiteboardDocument,
   generateAddSlide,
+  generateClearFrameTransitions,
   generateDuplicateSlide,
   generateMoveSlide,
   generateRemoveSlide,
@@ -686,6 +687,14 @@ export class WhiteboardInstanceImpl implements WhiteboardInstance {
     this.synchronizedDocument
       .getDocument()
       .performChange(generateSetFrameTransition(frameElementId, transition), {
+        undoable: false,
+      });
+  }
+
+  clearFrameTransitions(): void {
+    this.synchronizedDocument
+      .getDocument()
+      .performChange(generateClearFrameTransitions(), {
         undoable: false,
       });
   }

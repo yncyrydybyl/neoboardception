@@ -24,12 +24,20 @@ infinite canvas:
   frame (followers see the selection), a click on a frame or Enter opens
   it.
 - **Transitions** (also shown before the presentation starts):
-  - _Between frames_: `Fly`, `Fade`, `Slide`, `Zoom` or `None`.
+  - _Between frames_: `Fly`, `Fade`, `Slide`, `Scale` or `None`.
   - _Speed_: `Slow`, `Normal` or `Fast`.
   - _Into this frame_ (only while presenting): an override for the frame
     that is shown now, used whenever the presentation moves _into_ that frame
     (like `data-transition` on a Reveal.js slide). "Like all frames" removes
     the override.
+  - _Frames_ (only before the presentation starts, only if there are
+    overrides): "N frames have their own transition" and **Use for all
+    frames**, which removes the overrides of all frames after a
+    confirmation. Settings are not part of the undo history, so this cannot
+    be undone with Ctrl+Z.
+  - _Reduced motion_ (only if the system of the device asks for reduced
+    motion): **Play transitions anyway (this device)**, see
+    [Reduced motion](#reduced-motion).
 
 A progress bar runs along the bottom edge and a label shows "3 of 7" (or
 "Overview · 3 of 7"). It is shown to the presenter and to everyone who
@@ -50,13 +58,13 @@ overview, the arrow keys only move the selection; the camera stays.
 
 ## Transition styles
 
-| Style   | What happens                                                                                     | Used for                     |
-| ------- | ------------------------------------------------------------------------------------------------ | ---------------------------- |
-| `fly`   | The camera zooms out, pans and zooms in along a smooth path (default).                           | Prezi-like story telling     |
-| `fade`  | The view fades out, the camera jumps, the next frame fades in.                                   | calm talks, reduced motion   |
-| `slide` | The view slides out to the left and the next frame comes in from the right (reversed backwards). | slide-like decks             |
-| `zoom`  | The view grows and fades, the next frame grows in from the distance (reversed backwards).        | "diving into" a detail frame |
-| `none`  | The camera jumps, as before.                                                                     | live editing, slow devices   |
+| Style   | What happens                                                                                                  | Used for                     |
+| ------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `fly`   | The camera zooms out, pans and zooms in along a smooth path (default).                                        | Prezi-like story telling     |
+| `fade`  | The view fades out, the camera jumps, the next frame fades in.                                                | calm talks, reduced motion   |
+| `slide` | The view slides out to the left and the next frame comes in from the right (reversed backwards).              | slide-like decks             |
+| `zoom`  | Shown as **Scale**. The view grows and fades, the next frame grows in from the distance (reversed backwards). | "diving into" a detail frame |
+| `none`  | The camera jumps, as before.                                                                                  | live editing, slow devices   |
 
 ### The fly path
 
@@ -78,6 +86,11 @@ motion), unless the presentation uses `none`.
 Frames are not rotatable in NeoBoard, so the camera does not rotate. Rotated
 content inside frames is shown as it is.
 
+The style `zoom` is shown as "Scale" (German "Skalieren") in the menu since
+0.3.2: it scales and fades the view, the camera does not move (that is
+`fly`). The stored value stays `zoom`, so boards and older clients keep
+working.
+
 ### Reduced motion
 
 If the viewer's system asks for reduced motion
@@ -85,6 +98,25 @@ If the viewer's system asks for reduced motion
 `slide`, `zoom`) is replaced by a `fade` on that viewer's screen. `fade` and
 `none` stay as they are. This is decided per viewer: the presenter can fly
 while a follower with reduced motion fades.
+
+Some desktops switch this on together with other settings (e.g. GNOME's
+"Animations" switch), so people often do not know about it. Therefore:
+
+- The Transitions menu shows "Your system asks for reduced motion, so
+  transitions play as fades on this device." and a checkbox **Play
+  transitions anyway (this device)**.
+- When a presentation starts (presenting or following) on such a device, a
+  small hint says the same once per page load, with a **Play anyway**
+  button. It disappears after a few seconds and does not block anything.
+  Followers do not see the present bar, so the button is their way to
+  change it.
+
+The choice is stored per device in the browser's local storage under
+`neoboard.presentation.ignoreReducedMotion` (`"true"`, absent means off).
+It is not part of the board and does not affect anyone else. If the storage
+is not available (private mode, blocked site data), the system setting
+applies. The default is unchanged: without the choice, reduced motion
+means fades.
 
 ## How it works
 
@@ -166,6 +198,29 @@ shown again when the camera arrives, without the 150 ms gesture delay. Fades,
 slides and zooms do not hide the widget at all; it fades and moves together
 with the canvas.
 
+## Connection problems (TURN)
+
+With `REACT_APP_RTC=webrtc` the presentation messages travel over direct
+WebRTC connections between the sessions of a board. Behind some NATs and
+firewalls (mobile networks, corporate networks) two devices can only connect
+through a relay (TURN) server, which the homeserver hands to the widget
+(`m.turn_servers` via the widget API). Without one, a follower never
+receives the presentation and nothing happens on their screen.
+
+If a connection to another session tries to come up (ICE checks run or
+failed) but is not up after about 15 seconds, the board shows a hint:
+"Couldn't connect to another person on this board, so you may not be able to
+follow their presentation. Your devices may need a relay (TURN) server." (or,
+for the presenter, that some people may not see the presentation). The hint
+does not block anything, can be dismissed and disappears once the connection
+is up. A follower who is connected to the presenter does not see it.
+
+Sessions that never answer at all (for example a closed tab whose session is
+not cleaned up yet) do not trigger the hint. MatrixRTC mode is not covered.
+
+The fix is on the server side: configure a TURN server (e.g. coturn) for
+the homeserver, so that clients get TURN credentials.
+
 ## Tests
 
 - Unit tests: camera math and the fly path (`camera.test.ts`), transition
@@ -174,10 +229,14 @@ with the canvas.
   document settings, defaults, invalid values, concurrent edits and undo
   (`presentation.test.ts`), key mapping (`presentationKeys.test.ts`),
   messages (`presentFrame.test.ts`), overview and catch-up in the
-  presentation manager, the widget viewport hook (`viewport.test.ts`).
-- Component tests: the present bar menu and overview button
-  (`PresentBar.test.tsx`), the canvas camera with presenter, follower, late
-  joiner, overview and reduced motion (`usePresentationCamera.test.tsx`).
+  presentation manager, the widget viewport hook (`viewport.test.ts`), the
+  per device reduced motion choice (`reducedMotion.test.ts`), connection
+  attempts (`utils.test.ts`, `usePeerConnectionProblem.test.tsx`).
+- Component tests: the present bar menu, "Use for all frames", the reduced
+  motion checkbox and overview button (`PresentBar.test.tsx`), the hints
+  (`PresentationHints.test.tsx`), the canvas camera with presenter, follower,
+  late joiner, overview, reduced motion and "play anyway"
+  (`usePresentationCamera.test.tsx`).
 
 ## Possible next steps
 

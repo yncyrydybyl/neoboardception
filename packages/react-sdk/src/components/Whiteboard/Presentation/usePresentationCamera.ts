@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { useMediaQuery } from '@mui/material';
 import { RefObject, useEffect, useMemo, useRef } from 'react';
 import {
   FrameElement,
@@ -40,6 +39,7 @@ import {
   viewBoxForCamera,
 } from './camera';
 import { CameraTransitionPlayer } from './CameraTransitionPlayer';
+import { useReducedMotionPreference } from './reducedMotion';
 import {
   planTransition,
   resolveOverviewTransition,
@@ -112,9 +112,8 @@ export function usePresentationCamera(
   const { state } = usePresentationMode();
   const { overview } = usePresentationOverview();
   const { settings } = usePresentationSettings();
-  const prefersReducedMotion = useMediaQuery(
-    '(prefers-reduced-motion: reduce)',
-  );
+  // the system setting, unless the viewer chose to see transitions anyway
+  const { reducedMotion: prefersReducedMotion } = useReducedMotionPreference();
 
   const isPresentation = state.type !== 'idle';
   const showOverview = isPresentation && overview;

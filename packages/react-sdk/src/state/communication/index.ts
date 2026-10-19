@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+export { isPeerConnectionAttempting } from './connection';
 export * from './discovery';
 export { MatrixRtcCommunicationChannel } from './matrixRtcCommunicationChannel';
 export * from './messages';

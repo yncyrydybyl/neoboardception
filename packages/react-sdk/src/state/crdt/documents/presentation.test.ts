@@ -18,6 +18,7 @@ import { describe, expect, it } from 'vitest';
 import { YMap } from '../y';
 import {
   defaultPresentationSettings,
+  generateClearFrameTransitions,
   generateSetFrameTransition,
   generateSetPresentationSpeed,
   generateSetPresentationTransition,
@@ -76,6 +77,46 @@ describe('presentation settings in the board document', () => {
     const document = createWhiteboardDocument(WhiteboardDocumentVersion.v1);
 
     document.performChange(generateSetFrameTransition('frame-1', undefined));
+
+    expect(document.getData().toJSON()).not.toHaveProperty('presentation');
+  });
+
+  it('removes the overrides of all frames and keeps the other settings', () => {
+    const document = createWhiteboardDocument(WhiteboardDocumentVersion.v1);
+    document.performChange(generateSetPresentationTransition('slide'));
+    document.performChange(generateSetPresentationSpeed('fast'));
+    document.performChange(generateSetFrameTransition('frame-1', 'zoom'));
+    document.performChange(generateSetFrameTransition('frame-2', 'none'));
+    document.performChange((doc) => {
+      // an override that this client does not understand
+      const map = (doc as unknown as YMap<unknown>).get(
+        'presentation',
+      ) as YMap<unknown>;
+      map.set('frame:frame-3', 'warp');
+    });
+
+    document.performChange(generateClearFrameTransitions());
+
+    expect(getPresentationSettings(document.getData())).toEqual({
+      transition: 'slide',
+      speed: 'fast',
+      frameTransitions: {},
+    });
+    expect(document.getData().toJSON()).toMatchObject({
+      presentation: { transition: 'slide', speed: 'fast' },
+    });
+    expect(
+      Object.keys(
+        (document.getData().toJSON() as unknown as { presentation: object })
+          .presentation,
+      ),
+    ).toEqual(['transition', 'speed']);
+  });
+
+  it('removing all overrides without settings does not create them', () => {
+    const document = createWhiteboardDocument(WhiteboardDocumentVersion.v1);
+
+    document.performChange(generateClearFrameTransitions());
 
     expect(document.getData().toJSON()).not.toHaveProperty('presentation');
   });

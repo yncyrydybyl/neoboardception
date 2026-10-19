@@ -386,11 +386,25 @@
     "disableEditing": "Bearbeitung sperren",
     "enableEditing": "Bearbeitung freigeben",
     "endPresentation": "Präsentation beenden",
+    "hints": {
+      "connection": "Keine Verbindung zu einer anderen Person auf diesem Board, du kannst ihrer Präsentation daher eventuell nicht folgen. Eure Geräte brauchen möglicherweise einen Relay-Server (TURN).",
+      "connectionPresenter": "Keine Verbindung zu allen auf diesem Board, manche sehen deine Präsentation daher eventuell nicht. Eure Geräte brauchen möglicherweise einen Relay-Server (TURN).",
+      "dismiss": "Schließen",
+      "playAnyway": "Trotzdem abspielen",
+      "reducedMotion": "Dein System wünscht reduzierte Bewegung, daher werden Übergänge auf diesem Gerät als Überblendung gezeigt.",
+      "reducedMotionPresenter": "Dein System wünscht reduzierte Bewegung, daher werden Übergänge auf diesem Gerät als Überblendung gezeigt. Du kannst das im Menü „Übergänge“ ändern."
+    },
     "openFrame": "Rahmen {{number}} öffnen",
     "overview": "Übersicht aller Rahmen",
     "progress": "{{current}} von {{total}}",
     "progressLabel": "Fortschritt der Präsentation",
     "progressOverview": "Übersicht · {{current}} von {{total}}",
+    "reducedMotion": {
+      "note": "Dein System wünscht reduzierte Bewegung, daher werden Übergänge auf diesem Gerät als Überblendung gezeigt.",
+      "noteIgnored": "Dein System wünscht reduzierte Bewegung, auf diesem Gerät werden Übergänge aber normal abgespielt.",
+      "playAnyway": "Übergänge trotzdem abspielen (dieses Gerät)",
+      "title": "Reduzierte Bewegung"
+    },
     "showOverview": "Alle Rahmen zeigen",
     "speed": {
       "fast": "Schnell",
@@ -406,6 +420,9 @@
       "fadeDescription": "Aus- und einblenden",
       "fly": "Fliegen",
       "flyDescription": "Herauszoomen, schwenken, hineinzoomen",
+      "frameOverrides_one": "Ein Rahmen hat einen eigenen Übergang",
+      "frameOverrides_other": "{{count}} Rahmen haben einen eigenen Übergang",
+      "frames": "Rahmen",
       "likePresentation": "Wie alle Rahmen",
       "none": "Keiner",
       "noneDescription": "Direkt springen",
@@ -413,8 +430,13 @@
       "slideDescription": "Rahmen zur Seite schieben",
       "title": "Übergänge",
       "toThisFrame": "In diesen Rahmen",
-      "zoom": "Zoomen",
-      "zoomDescription": "In den Rahmen eintauchen"
+      "useForAll": "Für alle Rahmen verwenden",
+      "useForAllCancel": "Abbrechen",
+      "useForAllText_one": "Ein Rahmen hat einen eigenen Übergang. Er wird für alle auf diesem Board entfernt und lässt sich nicht mit Rückgängig wiederherstellen.",
+      "useForAllText_other": "{{count}} Rahmen haben einen eigenen Übergang. Sie werden für alle auf diesem Board entfernt und lassen sich nicht mit Rückgängig wiederherstellen.",
+      "useForAllTitle": "„{{transition}}“ für alle Rahmen verwenden?",
+      "zoom": "Skalieren",
+      "zoomDescription": "Wachsend in den Rahmen überblenden"
     }
   },
   "presentToolsBar": {

@@ -14,5 +14,6 @@
  * limitations under the License.
  */
 
+export { PresentationHints } from './PresentationHints';
 export { PresentationProgress } from './PresentationProgress';
 export { PresentBar } from './PresentBar';

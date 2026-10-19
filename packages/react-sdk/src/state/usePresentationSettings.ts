@@ -32,6 +32,8 @@ type UsePresentationSettings = {
     frameElementId: string,
     transition: PresentationTransition | undefined,
   ) => void;
+  /** Remove the overrides of all frames. */
+  clearFrameTransitions: () => void;
 };
 
 /** Presentation settings (transitions) of the active whiteboard. */
@@ -55,6 +57,7 @@ export function usePresentationSettings(): UsePresentationSettings {
       setSpeed: (speed) => whiteboardInstance.setPresentationSpeed(speed),
       setFrameTransition: (frameElementId, transition) =>
         whiteboardInstance.setFrameTransition(frameElementId, transition),
+      clearFrameTransitions: () => whiteboardInstance.clearFrameTransitions(),
     }),
     [settings, whiteboardInstance],
   );

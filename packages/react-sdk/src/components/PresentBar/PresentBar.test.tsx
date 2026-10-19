@@ -48,6 +48,10 @@ import {
 import { Message } from '../../state/communication';
 import { LayoutStateProvider } from '../Layout';
 import { useSvgScaleContext } from '../Whiteboard';
+import {
+  getIgnoreReducedMotion,
+  setIgnoreReducedMotion,
+} from '../Whiteboard/Presentation/reducedMotion';
 import { PresentBar } from './PresentBar';
 
 let widgetApi: MockedWidgetApi;
@@ -862,9 +866,9 @@ describe('<PresentBar/>', () => {
         within(menu).getByRole('menuitemradio', { name: 'Like all frames' }),
       ).toHaveAttribute('aria-checked', 'true');
 
-      // the second "Zoom" entry belongs to "Into this frame"
+      // the second "Scale" entry belongs to "Into this frame"
       const zoomItems = within(menu).getAllByRole('menuitemradio', {
-        name: /^Zoom/,
+        name: /^Scale/,
       });
       expect(zoomItems).toHaveLength(2);
       await userEvent.click(zoomItems[1]);
@@ -879,6 +883,242 @@ describe('<PresentBar/>', () => {
       expect(
         activeWhiteboardInstance.getPresentationSettings().frameTransitions,
       ).toEqual({});
+    });
+
+    it('should label the stored "zoom" transition as "Scale"', async () => {
+      activeSlide.addElement(mockFrameElement());
+      activeWhiteboardInstance.setPresentationTransition('zoom');
+      render(<PresentBar />, { wrapper: Wrapper });
+
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Transitions' }),
+      );
+
+      expect(
+        within(screen.getByRole('menu')).getByRole('menuitemradio', {
+          name: /^Scale/,
+        }),
+      ).toHaveAttribute('aria-checked', 'true');
+      expect(
+        within(screen.getByRole('menu')).queryByRole('menuitemradio', {
+          name: /^Zoom/,
+        }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('should not summarize frame transitions without overrides', async () => {
+      activeSlide.addElement(mockFrameElement());
+      render(<PresentBar />, { wrapper: Wrapper });
+
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Transitions' }),
+      );
+
+      expect(
+        within(screen.getByRole('menu')).queryByRole('menuitem', {
+          name: /Use for all frames/,
+        }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('should summarize the frame transitions before presenting and use one for all frames', async () => {
+      const frameId0 = activeSlide.addElement(mockFrameElement());
+      const frameId1 = activeSlide.addElement(mockFrameElement());
+      activeSlide.addElement(mockFrameElement());
+      activeWhiteboardInstance.setFrameTransition(frameId0, 'zoom');
+      activeWhiteboardInstance.setFrameTransition(frameId1, 'fade');
+      // an override of a deleted frame does not count
+      activeWhiteboardInstance.setFrameTransition('deleted-frame', 'slide');
+      render(<PresentBar />, { wrapper: Wrapper });
+
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Transitions' }),
+      );
+      const item = within(screen.getByRole('menu')).getByRole('menuitem', {
+        name: /Use for all frames/,
+      });
+      expect(item).toHaveTextContent('2 frames have their own transition');
+
+      // cancel keeps the overrides
+      await userEvent.click(item);
+      let dialog = screen.getByRole('dialog', {
+        name: 'Use "Fly" for all frames?',
+      });
+      expect(dialog).toHaveTextContent(
+        '2 frames have their own transition. They will be removed for everyone on this board and cannot be restored with undo.',
+      );
+      await userEvent.click(
+        within(dialog).getByRole('button', { name: 'Cancel' }),
+      );
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+      );
+      expect(
+        Object.keys(
+          activeWhiteboardInstance.getPresentationSettings().frameTransitions,
+        ),
+      ).toHaveLength(3);
+
+      // confirm removes all overrides
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Transitions' }),
+      );
+      await userEvent.click(
+        within(screen.getByRole('menu')).getByRole('menuitem', {
+          name: /Use for all frames/,
+        }),
+      );
+      dialog = screen.getByRole('dialog');
+      await userEvent.click(
+        within(dialog).getByRole('button', { name: 'Use for all frames' }),
+      );
+
+      expect(activeWhiteboardInstance.getPresentationSettings()).toEqual({
+        transition: 'fly',
+        speed: 'normal',
+        frameTransitions: {},
+      });
+    });
+
+    it('should use the singular for one frame with its own transition', async () => {
+      const frameId0 = activeSlide.addElement(mockFrameElement());
+      activeSlide.addElement(mockFrameElement());
+      activeWhiteboardInstance.setFrameTransition(frameId0, 'zoom');
+      render(<PresentBar />, { wrapper: Wrapper });
+
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Transitions' }),
+      );
+
+      expect(
+        within(screen.getByRole('menu')).getByRole('menuitem', {
+          name: /Use for all frames/,
+        }),
+      ).toHaveTextContent('One frame has its own transition');
+    });
+
+    it('should not offer the reduced motion choice without reduced motion', async () => {
+      activeSlide.addElement(mockFrameElement());
+      render(<PresentBar />, { wrapper: Wrapper });
+
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Transitions' }),
+      );
+
+      expect(
+        within(screen.getByRole('menu')).queryByRole('menuitemcheckbox'),
+      ).not.toBeInTheDocument();
+    });
+
+    describe('with reduced motion', () => {
+      const matchMedia = window.matchMedia;
+
+      beforeEach(() => {
+        window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+          matches: query.includes('prefers-reduced-motion: reduce'),
+          media: query,
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        }));
+        setIgnoreReducedMotion(false);
+      });
+
+      afterEach(() => {
+        window.matchMedia = matchMedia;
+        setIgnoreReducedMotion(false);
+      });
+
+      it('should play transitions anyway on this device', async () => {
+        activeSlide.addElement(mockFrameElement());
+        render(<PresentBar />, { wrapper: Wrapper });
+
+        await userEvent.click(
+          screen.getByRole('button', { name: 'Transitions' }),
+        );
+        const toggle = within(screen.getByRole('menu')).getByRole(
+          'menuitemcheckbox',
+          { name: /Play transitions anyway \(this device\)/ },
+        );
+        expect(toggle).toHaveAttribute('aria-checked', 'false');
+        expect(toggle).toHaveTextContent(
+          'Your system asks for reduced motion, so transitions play as fades on this device.',
+        );
+
+        await userEvent.click(toggle);
+
+        expect(toggle).toHaveAttribute('aria-checked', 'true');
+        expect(getIgnoreReducedMotion()).toBe(true);
+        // a device setting, not a board setting
+        expect(activeWhiteboardInstance.getPresentationSettings()).toEqual({
+          transition: 'fly',
+          speed: 'normal',
+          frameTransitions: {},
+        });
+
+        await userEvent.click(toggle);
+        expect(toggle).toHaveAttribute('aria-checked', 'false');
+        expect(getIgnoreReducedMotion()).toBe(false);
+      });
+
+      it('should offer the choice while presenting', async () => {
+        activeSlide.addElement(mockFrameElement());
+        render(<PresentBar />, { wrapper: Wrapper });
+        const toolbar = await startPresentation();
+
+        await userEvent.click(
+          within(toolbar).getByRole('button', { name: 'Transitions' }),
+        );
+
+        expect(
+          within(screen.getByRole('menu')).getByRole('menuitemcheckbox', {
+            name: /Play transitions anyway/,
+          }),
+        ).toBeInTheDocument();
+      });
+
+      it('should have no accessibility violations with the menu open', async () => {
+        const frameId0 = activeSlide.addElement(mockFrameElement());
+        activeSlide.addElement(mockFrameElement());
+        activeWhiteboardInstance.setFrameTransition(frameId0, 'zoom');
+        const { baseElement } = render(<PresentBar />, { wrapper: Wrapper });
+        await userEvent.click(
+          screen.getByRole('button', { name: 'Transitions' }),
+        );
+        expect(
+          within(screen.getByRole('menu')).getByRole('menuitemcheckbox'),
+        ).toBeInTheDocument();
+
+        await act(async () => {
+          expect(
+            await axe.run(baseElement, {
+              rules: { region: { enabled: false } },
+            }),
+          ).toHaveNoViolations();
+        });
+      });
+    });
+
+    it('should have no accessibility violations with the "use for all frames" dialog open', async () => {
+      const frameId0 = activeSlide.addElement(mockFrameElement());
+      activeWhiteboardInstance.setFrameTransition(frameId0, 'zoom');
+      const { baseElement } = render(<PresentBar />, { wrapper: Wrapper });
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Transitions' }),
+      );
+      await userEvent.click(
+        within(screen.getByRole('menu')).getByRole('menuitem', {
+          name: /Use for all frames/,
+        }),
+      );
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+      await act(async () => {
+        expect(
+          await axe.run(baseElement, { rules: { region: { enabled: false } } }),
+        ).toHaveNoViolations();
+      });
     });
 
     it('should show and close the overview', async () => {

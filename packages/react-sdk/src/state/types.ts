@@ -191,6 +191,11 @@ export type WhiteboardInstance = {
     frameElementId: string,
     transition: PresentationTransition | undefined,
   ): void;
+  /**
+   * Remove the transition overrides of all frames. Not part of the undo
+   * history.
+   */
+  clearFrameTransitions(): void;
 
   /** Update a managed document to mismatched snapshot and merge. */
   mergeMismatchedSnapshot(): void;

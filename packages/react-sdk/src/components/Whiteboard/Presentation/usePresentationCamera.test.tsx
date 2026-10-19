@@ -46,6 +46,7 @@ import {
   SvgScaleContextType,
   useSvgScaleContext,
 } from '../SvgScaleContext';
+import { setIgnoreReducedMotion } from './reducedMotion';
 
 vi.mock('../SvgCanvas/useMeasure', () => ({
   useMeasure: vi.fn().mockReturnValue([vi.fn(), { width: 1920, height: 1080 }]),
@@ -346,5 +347,63 @@ describe('usePresentationCamera', () => {
     } finally {
       window.matchMedia = matchMedia;
     }
+  });
+  describe('when the viewer plays transitions anyway', () => {
+    const matchMedia = window.matchMedia;
+
+    beforeEach(() => {
+      window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+        matches: query.includes('prefers-reduced-motion'),
+        media: query,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }));
+      setIgnoreReducedMotion(true);
+    });
+
+    afterEach(() => {
+      window.matchMedia = matchMedia;
+      setIgnoreReducedMotion(false);
+    });
+
+    it('flies as presenter despite reduced motion', () => {
+      render(<WhiteboardHost />, { wrapper: Wrapper });
+      act(() =>
+        activeWhiteboard.getPresentationManager()!.startPresentation('frame-0'),
+      );
+      advance(3000);
+
+      act(() => activeWhiteboard.setActiveFrameElementId('frame-1'));
+      advance(400);
+
+      // somewhere on the way, zoomed out further than both frames
+      expect(viewBox()[2]).toBeGreaterThan(frame0.width);
+
+      advance(3000);
+      expect(viewBox()).toEqual(
+        viewBoxOf([frame1.x, frame1.y, frame1.width, frame1.height]),
+      );
+    });
+
+    it('flies as follower despite reduced motion', () => {
+      render(<WhiteboardHost />, { wrapper: Wrapper });
+
+      act(() =>
+        messageSubject.next({
+          senderUserId: '@user-alice:example.com',
+          senderSessionId: 'other',
+          type: 'net.nordeck.whiteboard.present_frame',
+          content: { view: { isEditMode: false, frameId: 'frame-1' } },
+        }),
+      );
+
+      expect(viewBox()[2]).not.toBeCloseTo(frame1.width);
+      advance(3000);
+      expect(viewBox()).toEqual(
+        viewBoxOf([frame1.x, frame1.y, frame1.width, frame1.height]),
+      );
+    });
   });
 });

@@ -386,11 +386,25 @@
     "disableEditing": "Disable editing",
     "enableEditing": "Enable editing",
     "endPresentation": "End presentation",
+    "hints": {
+      "connection": "Couldn't connect to another person on this board, so you may not be able to follow their presentation. Your devices may need a relay (TURN) server.",
+      "connectionPresenter": "Couldn't connect to everyone on this board, so some people may not see your presentation. Your devices may need a relay (TURN) server.",
+      "dismiss": "Dismiss",
+      "playAnyway": "Play anyway",
+      "reducedMotion": "Your system asks for reduced motion, so transitions play as fades on this device.",
+      "reducedMotionPresenter": "Your system asks for reduced motion, so transitions play as fades on this device. You can change this in the Transitions menu."
+    },
     "openFrame": "Open frame {{number}}",
     "overview": "Overview of all frames",
     "progress": "{{current}} of {{total}}",
     "progressLabel": "Presentation progress",
     "progressOverview": "Overview · {{current}} of {{total}}",
+    "reducedMotion": {
+      "note": "Your system asks for reduced motion, so transitions play as fades on this device.",
+      "noteIgnored": "Your system asks for reduced motion, but transitions play as usual on this device.",
+      "playAnyway": "Play transitions anyway (this device)",
+      "title": "Reduced motion"
+    },
     "showOverview": "Show all frames",
     "speed": {
       "fast": "Fast",
@@ -406,6 +420,9 @@
       "fadeDescription": "Fade out and in",
       "fly": "Fly",
       "flyDescription": "Zoom out, pan and zoom in",
+      "frameOverrides_one": "One frame has its own transition",
+      "frameOverrides_other": "{{count}} frames have their own transition",
+      "frames": "Frames",
       "likePresentation": "Like all frames",
       "none": "None",
       "noneDescription": "Jump directly",
@@ -413,8 +430,13 @@
       "slideDescription": "Push the frame aside",
       "title": "Transitions",
       "toThisFrame": "Into this frame",
-      "zoom": "Zoom",
-      "zoomDescription": "Dive into the frame"
+      "useForAll": "Use for all frames",
+      "useForAllCancel": "Cancel",
+      "useForAllText_one": "One frame has its own transition. It will be removed for everyone on this board and cannot be restored with undo.",
+      "useForAllText_other": "{{count}} frames have their own transition. They will be removed for everyone on this board and cannot be restored with undo.",
+      "useForAllTitle": "Use \"{{transition}}\" for all frames?",
+      "zoom": "Scale",
+      "zoomDescription": "Grow and fade into the frame"
     }
   },
   "presentToolsBar": {

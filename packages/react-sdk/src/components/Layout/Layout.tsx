@@ -37,7 +37,11 @@ import { GuidedTour } from '../GuidedTour';
 import { HelpCenterBar } from '../HelpCenterBar';
 import { ImageUploadProvider } from '../ImageUpload';
 import { ImportWhiteboardDialogProvider } from '../ImportWhiteboardDialog/ImportWhiteboardDialogProvider';
-import { PresentationProgress, PresentBar } from '../PresentBar';
+import {
+  PresentationHints,
+  PresentationProgress,
+  PresentBar,
+} from '../PresentBar';
 import { Shortcuts } from '../Shortcuts';
 import { SlideOverviewBar } from '../SlideOverviewBar';
 import { ToolsBar } from '../ToolsBar';
@@ -198,6 +202,7 @@ function ContentArea() {
       <PresentationProgress
         raised={!isViewingPresentation || isViewingPresentationInEditMode}
       />
+      <PresentationHints />
 
       {(!isViewingPresentation || isViewingPresentationInEditMode) && (
         <ToolbarCanvasContainer ref={sizeRef}>
