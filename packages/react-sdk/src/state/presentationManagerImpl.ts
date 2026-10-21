@@ -73,6 +73,12 @@ export class PresentationManagerImpl implements PresentationManager {
     private readonly whiteboardInstance: WhiteboardInstance,
     private readonly communicationChannel: CommunicationChannel,
     enableObserveVisibilityStateSubject?: Subject<boolean>,
+    /**
+     * Presentation messages (start, frame, edit mode, stop) are followed only
+     * from users for whom this returns `true` (view-only mode). Not set:
+     * from everybody.
+     */
+    isRemoteSenderAllowed?: (userId: string) => boolean,
   ) {
     this.communicationChannel
       .observeStatistics()
@@ -142,7 +148,14 @@ export class PresentationManagerImpl implements PresentationManager {
 
     this.communicationChannel
       .observeMessages()
-      .pipe(takeUntil(this.destroySubject))
+      .pipe(
+        takeUntil(this.destroySubject),
+        filter(
+          (message) =>
+            !isRemoteSenderAllowed ||
+            isRemoteSenderAllowed(message.senderUserId),
+        ),
+      )
       .subscribe((message) => {
         if (isInfiniteCanvasMode()) {
           if (isValidPresentFrameMessage(message)) {

@@ -26,8 +26,14 @@ import { TextFormattingShortcuts } from './TextFormattingShortcuts';
 import { UndoRedoShortcuts } from './UndoRedoShortcuts';
 import { ZoomShortcuts } from './ZoomShortcuts';
 
-export function Shortcuts() {
+export function Shortcuts({ viewOnly = false }: { viewOnly?: boolean }) {
   // Place to register all global shortcuts that are related to a slide
+  if (viewOnly) {
+    // Only shortcuts that never change the board. Presentation keys only
+    // act while presenting, which a view-only user cannot start.
+    return infiniteCanvasMode ? <ZoomShortcuts /> : null;
+  }
+
   return (
     <>
       <ClipboardShortcuts />

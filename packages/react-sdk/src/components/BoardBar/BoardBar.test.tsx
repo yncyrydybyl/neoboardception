@@ -109,6 +109,34 @@ describe('<BoardBar/>', () => {
     ).toBeInTheDocument();
   });
 
+  it('should hide the slide overview for users who may not edit the board', async () => {
+    widgetApi.mockSendStateEvent(
+      mockPowerLevelsEvent({
+        content: {
+          users: { '@moderator:example.com': 50 },
+          users_default: 0,
+          events_default: 50,
+          events: { 'net.nordeck.whiteboard.document.snapshot': 50 },
+        },
+      }),
+    );
+
+    render(<BoardBar />, { wrapper: Wrapper });
+
+    const toolbar = screen.getByRole('toolbar', { name: 'Board' });
+
+    await waitFor(() =>
+      expect(
+        within(toolbar).queryByRole('checkbox', {
+          name: 'Open slide overview',
+        }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      within(toolbar).getByRole('button', { name: 'Settings' }),
+    ).toBeInTheDocument();
+  });
+
   it('should render without frames in infinite canvas mode', async () => {
     vi.mocked(getEnvironment).mockImplementation((name, defaultValue) =>
       name === 'REACT_APP_INFINITE_CANVAS' ? 'true' : defaultValue,

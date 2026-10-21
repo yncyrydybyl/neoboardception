@@ -362,6 +362,45 @@ describe('WebRtcCommunicationChannel', () => {
     });
   });
 
+  describe('view-only mode', () => {
+    it('should only connect to sessions that pass shouldConnect', async () => {
+      channel = new WebRtcCommunicationChannel(
+        widgetApi,
+        sessionManager,
+        signalingChannel,
+        'whiteboard-id',
+        enableObserveVisibilityStateSubject,
+        250,
+        (remoteUserId) => remoteUserId === '@moderator:example.com',
+      );
+      await waitFor(() =>
+        expect(sessionManager.join).toHaveBeenCalledWith('whiteboard-id'),
+      );
+      await waitFor(() =>
+        expect(channel.getStatistics().localSession).toBeDefined(),
+      );
+
+      joinedSubject.next({
+        sessionId: 'visitor-session',
+        userId: '@visitor:example.com',
+      });
+      joinedSubject.next({
+        sessionId: 'moderator-session',
+        userId: '@moderator:example.com',
+      });
+
+      await waitFor(() =>
+        expect(WebRtcPeerConnection).toHaveBeenCalledTimes(1),
+      );
+      expect(WebRtcPeerConnection).toHaveBeenCalledWith(
+        signalingChannel,
+        { sessionId: 'moderator-session', userId: '@moderator:example.com' },
+        'session-id',
+        expect.anything(),
+      );
+    });
+  });
+
   async function waitForSessionExists() {
     await waitFor(() => {
       statisticsSubject.next(peerConnectionStatistics);

@@ -28,6 +28,7 @@ import {
   useWhiteboardSlideInstance,
   type Point,
 } from '../../state';
+import { usePowerLevels } from '../../store/api/usePowerLevels';
 import { useGetElementAttachFrame } from '../ElementAttachFrameProvider';
 import ElementBar from '../ElementBar/ElementBar';
 import {
@@ -66,12 +67,18 @@ const WhiteboardHost = ({
   hideCursors = false,
   hideDotGrid = false,
   withOutline = false,
+  viewOnly = false,
 }: {
   elementIds: string[];
   readOnly?: boolean;
   hideCursors?: boolean;
   hideDotGrid?: boolean;
   withOutline?: boolean;
+  /**
+   * The user may not edit the board at all (view-only mode): implies
+   * `readOnly`, no image drop, the own cursor is not published.
+   */
+  viewOnly?: boolean;
 }) => {
   const slideInstance = useWhiteboardSlideInstance();
   const {
@@ -116,7 +123,7 @@ const WhiteboardHost = ({
       alignContent="space-around"
       position="relative"
       data-guided-tour-target="canvas"
-      onDragEnter={handleUploadDragEnter}
+      onDragEnter={viewOnly ? undefined : handleUploadDragEnter}
       {...(infiniteCanvasMode && {
         sx: {
           touchAction: 'none',
@@ -141,15 +148,17 @@ const WhiteboardHost = ({
             </ElementBarWrapper>
           )
         }
-        topLevelChildren={uploadDragOverlay}
+        topLevelChildren={viewOnly ? undefined : uploadDragOverlay}
         rounded
         withOutline={withOutline}
         onMouseMove={useCallback(
           (position: Point) => {
             slideInstance.setCursorPosition(position);
-            slideInstance.publishCursorPosition(position);
+            if (!viewOnly) {
+              slideInstance.publishCursorPosition(position);
+            }
           },
-          [slideInstance],
+          [slideInstance, viewOnly],
         )}
         onMouseLeave={useCallback(() => {
           slideInstance.setCursorPosition(undefined);
@@ -158,6 +167,8 @@ const WhiteboardHost = ({
         <ChildrenWrapper>
           {!hideDotGrid && <DotGrid />}
           {!readOnly && <UnSelectElementHandler />}
+          {/* View-only users still pan the canvas (touch, middle/right drag). */}
+          {readOnly && viewOnly && <UnSelectElementHandler panOnly />}
 
           {elementIds.map((elementId) => {
             const override = getElementOverride(elementId);
@@ -226,6 +237,9 @@ export const WhiteboardHostConnected = () => {
   const isViewingPresentation = presentationState.type === 'presentation';
   const isEditEnabled =
     presentationState.type === 'idle' || presentationState.isEditMode;
+  const { canEditWhiteboard } = usePowerLevels();
+  // Only hide editing once the power levels say so (no flash for editors).
+  const viewOnly = canEditWhiteboard === false;
 
   if (loading) {
     return <SlideSkeleton />;
@@ -234,7 +248,10 @@ export const WhiteboardHostConnected = () => {
   return (
     <WhiteboardHost
       elementIds={elementIds}
-      readOnly={isLocked || (isViewingPresentation && !isEditEnabled)}
+      readOnly={
+        viewOnly || isLocked || (isViewingPresentation && !isEditEnabled)
+      }
+      viewOnly={viewOnly}
       hideCursors={!isEditEnabled}
       hideDotGrid={isViewingPresentation}
       withOutline={isPresenting}

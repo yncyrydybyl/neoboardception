@@ -91,6 +91,16 @@ export class SynchronizedDocumentImpl<
     private options: {
       // Do not persist document changes
       disableDocumentPersist?: boolean;
+      /**
+       * Real-time updates are applied only from users for whom this returns
+       * `true` (view-only mode). Not set: from everybody.
+       */
+      isRemoteSenderAllowed?: (userId: string) => boolean;
+      /**
+       * Snapshots are only sent while this returns `true`, e.g. not for a
+       * user who may not send them anyway. Not set: always.
+       */
+      canPersist?: () => boolean;
     } = {},
   ) {
     communicationChannel
@@ -100,12 +110,23 @@ export class SynchronizedDocumentImpl<
         filter(isValidDocumentUpdateMessage),
       )
       .subscribe((message) => {
-        if (message.content.documentId === documentId) {
-          this.document.applyChange(
-            Base64.toUint8Array(message.content.data),
-            validation?.documentValidator,
-          );
+        if (message.content.documentId !== documentId) {
+          return;
         }
+        if (
+          options.isRemoteSenderAllowed &&
+          !options.isRemoteSenderAllowed(message.senderUserId)
+        ) {
+          this.logger.debug(
+            'Ignoring document update from a user without edit permission',
+            message.senderUserId,
+          );
+          return;
+        }
+        this.document.applyChange(
+          Base64.toUint8Array(message.content.data),
+          validation?.documentValidator,
+        );
       });
 
     if (communicationChannel) {
@@ -251,7 +272,8 @@ export class SynchronizedDocumentImpl<
   private async persistDocument(doc: Document<T>) {
     if (
       this.options.disableDocumentPersist ||
-      !this.statistics.snapshotOutstanding
+      !this.statistics.snapshotOutstanding ||
+      (this.options.canPersist && !this.options.canPersist())
     ) {
       // No outstanding snapshot, do nothing
       return;

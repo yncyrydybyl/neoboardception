@@ -87,6 +87,7 @@ describe('usePowerLevels', () => {
         canInitializeWhiteboard: true,
         canImportWhiteboard: true,
         canStopPresentation: true,
+        canEditWhiteboard: true,
       });
     });
   });
@@ -115,6 +116,7 @@ describe('usePowerLevels', () => {
         canInitializeWhiteboard: false,
         canImportWhiteboard: true,
         canStopPresentation: true,
+        canEditWhiteboard: false,
       });
     });
   });
@@ -143,6 +145,7 @@ describe('usePowerLevels', () => {
         canInitializeWhiteboard: false,
         canImportWhiteboard: false,
         canStopPresentation: false,
+        canEditWhiteboard: false,
       });
     });
   });
@@ -171,6 +174,7 @@ describe('usePowerLevels', () => {
         canInitializeWhiteboard: false,
         canImportWhiteboard: false,
         canStopPresentation: false,
+        canEditWhiteboard: false,
       });
     });
   });
@@ -228,6 +232,7 @@ describe('usePowerLevels', () => {
         canInitializeWhiteboard: true,
         canImportWhiteboard: true,
         canStopPresentation: true,
+        canEditWhiteboard: true,
       });
     });
   });

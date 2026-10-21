@@ -69,6 +69,12 @@ export class WebRtcCommunicationChannel implements CommunicationChannel {
       true,
     ),
     visibilityTimeout = 30 * 1000,
+    /**
+     * Connect to a joined session only if this returns `true` (view-only
+     * mode: two users who may not edit have nothing to send each other).
+     * Not set: connect to every session (full mesh).
+     */
+    private readonly shouldConnect?: (remoteUserId: string) => boolean,
   ) {
     this.logger.log('Creating communication channel');
 
@@ -245,6 +251,14 @@ export class WebRtcCommunicationChannel implements CommunicationChannel {
 
     if (!sessionId) {
       throw new Error('Unknown session id');
+    }
+
+    if (this.shouldConnect && !this.shouldConnect(session.userId)) {
+      this.logger.log(
+        'Not connecting to a view-only session as a view-only user',
+        session.sessionId,
+      );
+      return;
     }
 
     // Wait for the Widget API and TURN servers to be ready

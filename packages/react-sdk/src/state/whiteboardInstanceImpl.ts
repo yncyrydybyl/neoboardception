@@ -36,6 +36,10 @@ import { isInfiniteCanvasMode, isMatrixRtcMode } from '../lib';
 import { Whiteboard } from '../model';
 import { StoreType } from '../store';
 import {
+  WhiteboardEditPermission,
+  createWhiteboardEditPermission,
+} from '../store/api/whiteboardPermissions';
+import {
   CommunicationChannel,
   FOCUS_ON_MESSAGE,
   FocusOn,
@@ -117,6 +121,10 @@ export class WhiteboardInstanceImpl implements WhiteboardInstance {
         this,
         this.communicationChannel,
         this.enableObserveVisibilityStateSubject,
+        this.editPermission
+          ? (senderUserId) =>
+              this.editPermission?.canEdit(senderUserId) === true
+          : undefined,
       )
     : undefined;
 
@@ -224,6 +232,11 @@ export class WhiteboardInstanceImpl implements WhiteboardInstance {
   ): WhiteboardInstanceImpl {
     const enableObserveVisibilityStateSubject = new BehaviorSubject(true);
 
+    // View-only mode: peers follow real-time changes and presentation
+    // messages only from users who may edit the board, and a user who may
+    // not edit does not try to send snapshots.
+    const editPermission = createWhiteboardEditPermission(store);
+
     const matrixRtcMode = isMatrixRtcMode();
     let communicationChannel: CommunicationChannel | undefined = undefined;
     if (matrixRtcMode && sessionManager) {
@@ -240,6 +253,14 @@ export class WhiteboardInstanceImpl implements WhiteboardInstance {
         signalingChannel,
         whiteboardEvent.state_key,
         enableObserveVisibilityStateSubject,
+        undefined,
+        // View-only users only connect to users who may edit (the mesh grows
+        // with editors × viewers instead of viewers²). Both sides decide the
+        // same way; unknown power levels connect as before.
+        (remoteUserId) =>
+          !editPermission.isKnown() ||
+          editPermission.canEdit(userId) ||
+          editPermission.canEdit(remoteUserId),
       );
     }
 
@@ -261,6 +282,11 @@ export class WhiteboardInstanceImpl implements WhiteboardInstance {
       whiteboardEvent.room_id,
       {
         disableDocumentPersist: documentReadonly,
+        isRemoteSenderAllowed: (senderUserId) =>
+          editPermission.canEdit(senderUserId),
+        // Unknown power levels: try (the old behaviour); the room decides.
+        canPersist: () =>
+          !editPermission.isKnown() || editPermission.canEdit(userId),
       },
     );
 
@@ -270,6 +296,7 @@ export class WhiteboardInstanceImpl implements WhiteboardInstance {
       whiteboardEvent,
       userId,
       enableObserveVisibilityStateSubject,
+      editPermission,
     );
   }
 
@@ -279,6 +306,7 @@ export class WhiteboardInstanceImpl implements WhiteboardInstance {
     private readonly whiteboardEvent: StateEvent<Whiteboard>,
     private readonly userId: string,
     private readonly enableObserveVisibilityStateSubject?: Subject<boolean>,
+    private readonly editPermission?: WhiteboardEditPermission,
   ) {
     this.whiteboardStatistics = {
       document: undefined,
@@ -320,7 +348,14 @@ export class WhiteboardInstanceImpl implements WhiteboardInstance {
 
     this.communicationChannel
       ?.observeMessages()
-      .pipe(takeUntil(this.destroySubject), filter(isValidFocusOnMessage))
+      .pipe(
+        takeUntil(this.destroySubject),
+        filter(isValidFocusOnMessage),
+        filter(
+          ({ senderUserId }) =>
+            !this.editPermission || this.editPermission.canEdit(senderUserId),
+        ),
+      )
       .subscribe(({ content }) => {
         this.setActiveSlideId(content.slideId);
       });
@@ -743,6 +778,7 @@ export class WhiteboardInstanceImpl implements WhiteboardInstance {
     this.synchronizedDocument.destroy();
     this.presentationManager?.destroy();
     this.communicationChannel?.destroy();
+    this.editPermission?.destroy();
   }
 
   async persist() {

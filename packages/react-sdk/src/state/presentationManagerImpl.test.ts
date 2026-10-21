@@ -381,6 +381,49 @@ describe('presentationManager', () => {
     expect(whiteboardInstance.setActiveSlideId).toHaveBeenCalledWith('slide-0');
   });
 
+  it('should ignore presentation messages of a user without edit permission', async () => {
+    presentationManager.destroy();
+    presentationManager = new PresentationManagerImpl(
+      whiteboardInstance,
+      communicationChannel,
+      enableObserveVisibilityStateSubject,
+      (userId) => userId === '@user-bob:example.com',
+    );
+    const states = firstValueFrom(
+      presentationManager.observePresentationState().pipe(take(2), toArray()),
+    );
+
+    messageSubject.next({
+      senderUserId: '@user-charlie:example.com',
+      senderSessionId: 'session-1',
+      type: 'net.nordeck.whiteboard.present_slide',
+      content: {
+        view: { isEditMode: true, slideId: 'slide-1' },
+      },
+    });
+    expect(whiteboardInstance.setActiveSlideId).not.toHaveBeenCalled();
+
+    messageSubject.next({
+      senderUserId: '@user-bob:example.com',
+      senderSessionId: 'session-0',
+      type: 'net.nordeck.whiteboard.present_slide',
+      content: {
+        view: { isEditMode: false, slideId: 'slide-0' },
+      },
+    });
+
+    expect(await states).toEqual([
+      { type: 'idle' },
+      {
+        type: 'presentation',
+        presenterUserId: '@user-bob:example.com',
+        isEditMode: false,
+      },
+    ]);
+    expect(whiteboardInstance.setActiveSlideId).toHaveBeenCalledTimes(1);
+    expect(whiteboardInstance.setActiveSlideId).toHaveBeenCalledWith('slide-0');
+  });
+
   it('should accept presentation start of a different user in infinite canvas mode', async () => {
     vi.mocked(getEnvironment).mockImplementation((name, defaultValue) => {
       switch (name) {

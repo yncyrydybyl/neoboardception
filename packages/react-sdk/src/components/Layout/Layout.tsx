@@ -82,6 +82,9 @@ export function Layout({ height = '100vh' }: LayoutProps) {
   const slideIds = useActiveWhiteboardInstanceSlideIds();
   const { state: presentationState } = usePresentationMode();
   const isViewingPresentation = presentationState.type === 'presentation';
+  const { canEditWhiteboard } = usePowerLevels();
+  // View-only: the frame/slide list can add, delete and reorder.
+  const viewOnly = canEditWhiteboard === false;
 
   const handleClose = useCallback(() => {
     setDeveloperToolsVisible(false);
@@ -104,7 +107,9 @@ export function Layout({ height = '100vh' }: LayoutProps) {
               bgcolor="background.paper"
             >
               <AnimatedSidebar
-                visible={isSlideOverviewVisible && !isViewingPresentation}
+                visible={
+                  isSlideOverviewVisible && !isViewingPresentation && !viewOnly
+                }
                 direction="right"
               >
                 <SlideOverviewBar />
@@ -172,12 +177,17 @@ function ContentArea() {
   const isViewingPresentation = presentationState.type === 'presentation';
   const isViewingPresentationInEditMode =
     isViewingPresentation && presentationState.isEditMode;
-  const { canStopPresentation } = usePowerLevels();
+  const { canStopPresentation, canEditWhiteboard } = usePowerLevels();
+  // View-only users follow presentations but never start, steer or stop
+  // them, and get no tools.
+  // The UI is open while the power levels load (no flash for editors);
+  // the peers' sender check is what protects the board.
+  const viewOnly = canEditWhiteboard === false;
   const [sizeRef, { width: toolbarWidth }] = useMeasure<HTMLDivElement>();
 
   return (
     <SvgScaleContextProvider>
-      <Shortcuts />
+      <Shortcuts viewOnly={viewOnly} />
 
       <ToolbarContainer
         alignItems="flex-start"
@@ -194,7 +204,9 @@ function ContentArea() {
           right={0}
         >
           <FullscreenModeBar />
-          {(!isViewingPresentation || canStopPresentation) && <PresentBar />}
+          {!viewOnly && (!isViewingPresentation || canStopPresentation) && (
+            <PresentBar />
+          )}
         </ToolbarContainer>
       </ToolbarContainer>
 
@@ -213,8 +225,8 @@ function ContentArea() {
 
             <Box flex="1" />
 
-            <ToolsBar />
-            {toolbarWidth > 515 && <UndoRedoBar />}
+            {!viewOnly && <ToolsBar />}
+            {!viewOnly && toolbarWidth > 515 && <UndoRedoBar />}
 
             <Box display="flex" justifyContent="flex-end" flex="1">
               {toolbarWidth > 600 && <HelpCenterBar />}

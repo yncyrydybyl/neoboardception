@@ -32,7 +32,15 @@ import {
   whiteboardWidth,
 } from '../../constants';
 
-export function UnSelectElementHandler() {
+export function UnSelectElementHandler({
+  panOnly = false,
+}: {
+  /**
+   * View-only mode: keep panning (touch drag, middle/right mouse drag) but
+   * never start a drag selection or touch the selection.
+   */
+  panOnly?: boolean;
+} = {}) {
   const { activeElementId } = useActiveElement();
   const slideInstance = useWhiteboardSlideInstance();
   const { isPinchZooming, setDragSelectStartCoords } = useLayoutState();
@@ -55,6 +63,18 @@ export function UnSelectElementHandler() {
   const handlePointerDown = useCallback(
     (event: PointerEvent<SVGRectElement>) => {
       if (event.button === 0) {
+        if (panOnly) {
+          if (
+            event.pointerType === 'touch' &&
+            event.isPrimary &&
+            infiniteCanvasMode &&
+            isPanningEnabled
+          ) {
+            positionRef.current = { x: event.clientX, y: event.clientY };
+          }
+          return;
+        }
+
         if (activeElementId) {
           slideInstance.setActiveElementId(undefined);
           window.getSelection()?.empty();
@@ -99,6 +119,7 @@ export function UnSelectElementHandler() {
       calculateSvgCoords,
       setDragSelectStartCoords,
       isPanningEnabled,
+      panOnly,
     ],
   );
 
@@ -143,6 +164,7 @@ export function UnSelectElementHandler() {
     'Escape',
     unselectElement,
     {
+      enabled: !panOnly,
       preventDefault: true,
       enableOnContentEditable: true,
       scopes: HOTKEY_SCOPE_WHITEBOARD,

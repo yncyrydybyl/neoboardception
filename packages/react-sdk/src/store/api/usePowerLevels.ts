@@ -26,11 +26,17 @@ import {
   useGetCreateEventQuery,
   useGetPowerLevelsQuery,
 } from './powerLevelsApi';
+import { canEditWhiteboard as canUserEditWhiteboard } from './whiteboardPermissions';
 
 export type PowerLevels = {
   canInitializeWhiteboard: boolean | undefined;
   canImportWhiteboard: boolean | undefined;
   canStopPresentation: boolean | undefined;
+  /**
+   * The user may change the board (send snapshots). Without it the board is
+   * view-only: no tools, no editing, no presenting. `undefined` while loading.
+   */
+  canEditWhiteboard: boolean | undefined;
 };
 
 export function usePowerLevels({
@@ -47,6 +53,7 @@ export function usePowerLevels({
   let canInitializeWhiteboard: boolean | undefined = undefined;
   let canImportWhiteboard: boolean | undefined = undefined;
   let canStopPresentation: boolean | undefined = undefined;
+  let canEditWhiteboard: boolean | undefined = undefined;
 
   if (!isLoading && powerLevels) {
     const powerContent = powerLevels.event?.content;
@@ -73,11 +80,17 @@ export function usePowerLevels({
       );
     canImportWhiteboard = canModerate;
     canStopPresentation = canModerate;
+    canEditWhiteboard = canUserEditWhiteboard(
+      powerContent,
+      createEvent?.event,
+      userId,
+    );
   }
 
   return {
     canInitializeWhiteboard,
     canImportWhiteboard,
     canStopPresentation,
+    canEditWhiteboard,
   };
 }

@@ -200,6 +200,52 @@ describe('SynchronizedDocumentImpl', () => {
     });
   });
 
+  it('should ignore real time updates of users without edit permission', async () => {
+    const doc = createExampleDocument();
+    const store = createStore({ widgetApi });
+
+    new SynchronizedDocumentImpl(
+      doc,
+      store,
+      communicationChannel,
+      storage,
+      '$document-0',
+      undefined,
+      undefined,
+      {
+        isRemoteSenderAllowed: (userId) => userId === '@moderator:example.com',
+      },
+    );
+
+    const { diff: visitorDiff } = await mockUpdate((doc) =>
+      doc.set('num', 666),
+    );
+    messageChannel.next({
+      type: 'net.nordeck.whiteboard.document_update',
+      content: {
+        data: Base64.fromUint8Array(visitorDiff),
+        documentId: '$document-0',
+      },
+      senderUserId: '@visitor:example.com',
+      senderSessionId: 'session-v',
+    });
+
+    expect(doc.getData().toJSON()).toEqual({ num: 5, text: '' });
+
+    const { diff } = await mockUpdate((doc) => doc.set('num', 10));
+    messageChannel.next({
+      type: 'net.nordeck.whiteboard.document_update',
+      content: {
+        data: Base64.fromUint8Array(diff),
+        documentId: '$document-0',
+      },
+      senderUserId: '@moderator:example.com',
+      senderSessionId: 'session-m',
+    });
+
+    expect(doc.getData().toJSON()).toEqual({ num: 10, text: '' });
+  });
+
   it('should ignore real time update for another document', async () => {
     const doc = createExampleDocument();
     const store = createStore({ widgetApi });
@@ -1069,6 +1115,30 @@ describe('SynchronizedDocumentImpl', () => {
         undefined,
         {
           disableDocumentPersist: true,
+        },
+      );
+
+      doc.performChange((doc) => doc.set('num', 10));
+
+      await synchronizedDocument.persist();
+
+      expect(widgetApi.sendRoomEvent).not.toHaveBeenCalled();
+    });
+
+    it('should not create a snapshot when the user may not send one', async () => {
+      const doc = createExampleDocument();
+      const store = createStore({ widgetApi });
+
+      const synchronizedDocument = new SynchronizedDocumentImpl(
+        doc,
+        store,
+        communicationChannel,
+        storage,
+        '$document-0',
+        undefined,
+        undefined,
+        {
+          canPersist: () => false,
         },
       );
 
